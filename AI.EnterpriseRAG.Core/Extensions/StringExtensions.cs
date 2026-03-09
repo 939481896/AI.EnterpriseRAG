@@ -8,8 +8,8 @@ namespace AI.EnterpriseRAG.Core.Extensions
     public static class StringExtensions
     {
         /// <summary>
-        /// 企业级语义文本分块（修复版：过滤页眉页脚+语义优先+不切断句子）
-        /// 兼容基础版/进阶版Token计数，适配TrackWise这类技术文档
+        /// 企业级语义文本分块（过滤页眉页脚+语义优先+不切断句子）
+        /// 兼容基础版/进阶版Token计数
         /// </summary>
         /// <param name="text">待分块文本</param>
         /// <param name="chunkSize">单分块最大Token数</param>
@@ -62,7 +62,7 @@ namespace AI.EnterpriseRAG.Core.Extensions
 
         #region 核心修复：新增/重构方法
         /// <summary>
-        /// 清洗页眉/页脚/版权/页码等垃圾文本（专门适配TrackWise文档）
+        /// 清洗页眉/页脚/版权/页码等垃圾文本
         /// </summary>
         private static string CleanHeaderFooterAndCopyright(string text)
         {
@@ -103,7 +103,7 @@ namespace AI.EnterpriseRAG.Core.Extensions
             var currentBlock = new StringBuilder();
             foreach (var line in lines)
             {
-                // 标题行：单独成块（如 1. Introduction、2. TrackWise Architecture、Appendix A: ...）
+                // 标题行：单独成块
                 if (IsTitleLine(line))
                 {
                     if (currentBlock.Length > 0)
