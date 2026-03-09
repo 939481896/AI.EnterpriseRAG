@@ -13,7 +13,7 @@ using AI.EnterpriseRAG.Infrastructure.Services.VectorStores;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
-using AppContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppContext;
+using AppEnterpriseAiContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +22,7 @@ builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LlmOpti
 builder.Services.Configure<VectorStoreOptions>(builder.Configuration.GetSection("VectorStoreOptions"));
 
 // ========== 2. 数据库配置 ==========
-builder.Services.AddDbContext<AI.EnterpriseRAG.Infrastructure.Persistence.AppContext>(options =>
+builder.Services.AddDbContext<AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext>(options =>
 {
     options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
         new MySqlServerVersion(new Version(8, 0, 30)),
@@ -41,6 +41,8 @@ builder.Services.AddHttpClient<TongyiLlmService>();
 
 builder.Services.AddScoped<IDocumentRepository,DocumentRepository>();
 builder.Services.AddScoped<IChatConversationRepository,ChatConversationRepository>();
+//分块服务
+builder.Services.AddScoped<DocumentChunkingService,DocumentChunkingService>();
 
 //文档解析器
 builder.Services.AddScoped<IDocumentParser,PdfDocumentParser>();
@@ -129,7 +131,7 @@ app.MapControllers();
 // 初始化数据库
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppContext>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppEnterpriseAiContext>();
     await dbContext.Database.MigrateAsync(); // 自动应用迁移
 }
 
