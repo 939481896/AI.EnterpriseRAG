@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.EnterpriseRAG.Core\AI.EnterpriseRAG.Core.csproj" />
+    <ProjectReference Include="..\AI.EnterpriseRAG.Domain\AI.EnterpriseRAG.Domain.csproj" />
+    <ProjectReference Include="..\AI.EnterpriseRAG.Infrastructure\AI.EnterpriseRAG.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

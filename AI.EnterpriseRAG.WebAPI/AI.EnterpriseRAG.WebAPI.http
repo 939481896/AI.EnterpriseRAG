@@ -1,0 +1,6 @@
+@AI.EnterpriseRAG.WebAPI_HostAddress = http://localhost:5243
+
+GET {{AI.EnterpriseRAG.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
