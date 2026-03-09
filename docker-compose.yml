@@ -1,0 +1,55 @@
+﻿services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: enterpriserag-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: EnterpriseRAG
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Chroma向量库
+  chroma:
+    image: chromadb/chroma:1.3.7
+    container_name: enterpriserag-chroma
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+
+  # Ollama本地模型
+  ollama:
+    image: ollama/ollama:latest
+    container_name: enterpriserag-ollama
+    restart: always
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  mysql-data:
+  chroma-data:
+  ollama-data:
