@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using AppContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppContext;
+using AppEnterpriseAiContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext;
 
 #nullable disable
 
 namespace AI.EnterpriseRAG.Infrastructure.Migrations
 {
-    [DbContext(typeof(AppContext))]
+    [DbContext(typeof(AppEnterpriseAiContext))]
     [Migration("20260306095414_Update20260306")]
     partial class Update20260306
     {

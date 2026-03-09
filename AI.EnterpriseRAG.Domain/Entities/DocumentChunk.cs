@@ -39,4 +39,30 @@ public class DocumentChunk
 
     public float Similarity { get; set; } // 检索相似度（VectorStore返回时赋值）
 
+    /// <summary>
+    /// 分块唯一标识
+    /// </summary>
+    public string ChunkId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 所属章节标题
+    /// </summary>
+    public string SectionTitle { get; set; } = string.Empty;
+
+
+    /// <summary>
+    /// 源文件名
+    /// </summary>
+    public string FileName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 源文件类型（pdf/txt/docx）
+    /// </summary>
+    public string FileType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 章节层级
+    /// </summary>
+    public int SectionLevel { get; set; }
+
 }

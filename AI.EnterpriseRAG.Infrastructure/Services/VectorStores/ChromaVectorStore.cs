@@ -230,13 +230,23 @@ public class ChromaVectorStore : IVectorStore
                 var metadata = queryResponse.Metadatas?[0][i];
                 if (metadata == null) continue;
 
+                // ========== 相似度计算核心逻辑 ==========
+                // 1. 获取Chroma返回的距离值（余弦距离，范围0~2）
+                float distance = queryResponse.Distances?[0][i] ?? 0;
+                // 2. 距离转相似度：余弦距离越小，相似度越高，公式：相似度 = 1 - (距离 / 2)
+                float similarity = 1 - (distance / 2);
+                // 3. 边界限制：确保相似度在0~1之间（避免异常值）
+                similarity = Math.Max(0, Math.Min(1, similarity));
+                // =======================================
+
                 resultChunks.Add(new DocumentChunk
                 {
                     Id = Guid.Parse(metadata["chunk_id"]!.ToString()!),
                     DocumentId = Guid.Parse(metadata["document_id"]!.ToString()!),
                     Index = int.Parse(metadata["chunk_index"]!.ToString()!),
                     Content = queryResponse.Documents?[0][i] ?? string.Empty,
-                    VectorJson = JsonSerializer.Serialize(queryResponse.Embeddings?[0][i] ?? Array.Empty<float>(), _jsonOptions)
+                    VectorJson = JsonSerializer.Serialize(queryResponse.Embeddings?[0][i] ?? Array.Empty<float>(), _jsonOptions),
+                    Similarity = similarity // 将计算后的相似度赋值给实体字段
                 });
             }
 

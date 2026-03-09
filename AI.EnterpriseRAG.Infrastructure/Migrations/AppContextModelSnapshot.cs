@@ -5,13 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using AppContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppContext;
 
 #nullable disable
 
 namespace AI.EnterpriseRAG.Infrastructure.Migrations
 {
-    [DbContext(typeof(AppContext))]
+    [DbContext(typeof(AppEnterpriseAiContext))]
     partial class AppContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
@@ -113,6 +112,10 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("ChunkId")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -120,8 +123,23 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("Index")
                         .HasColumnType("int");
+
+                    b.Property<int>("SectionLevel")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SectionTitle")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<float>("Similarity")
                         .HasColumnType("float");
