@@ -7,9 +7,9 @@ namespace AI.EnterpriseRAG.Infrastructure.Persistence;
 /// <summary>
 /// 数据库上下文（企业级EF Core配置）
 /// </summary>
-public class AppContext:DbContext
+public class AppEnterpriseAiContext:DbContext
 {
-    public AppContext(DbContextOptions<AppContext> options):base(options)
+    public AppEnterpriseAiContext(DbContextOptions<AppEnterpriseAiContext> options):base(options)
     {
 
     }
