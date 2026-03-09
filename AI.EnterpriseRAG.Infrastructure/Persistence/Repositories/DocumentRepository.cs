@@ -6,9 +6,9 @@ namespace AI.EnterpriseRAG.Infrastructure.Persistence.Repositories;
 
 public class DocumentRepository : IDocumentRepository
 {
-    private readonly AppContext _dbContext;
+    private readonly AppEnterpriseAiContext _dbContext;
 
-    public DocumentRepository(AppContext dbContext)
+    public DocumentRepository(AppEnterpriseAiContext dbContext)
     {  _dbContext = dbContext; }
     public async Task AddAsync(Document document)
     {

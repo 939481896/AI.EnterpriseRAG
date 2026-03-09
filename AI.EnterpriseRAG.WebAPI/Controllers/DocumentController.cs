@@ -63,4 +63,13 @@ public class DocumentController : ControllerBase
 
         return Ok(Result<DocumentUploadResponseDto>.SuccessResult(response, "文档上传成功，后台处理中"));
     }
+
+    [HttpDelete("deleteCollection")]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DeleteByCollectionNameAsync(Guid guid ,CancellationToken cancellationToken=default)
+    {
+        await _documentUseCase.DeleteByCollectionNameAsync(guid, cancellationToken);
+
+        return Ok();
+    }
 }

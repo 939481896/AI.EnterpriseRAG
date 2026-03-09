@@ -15,4 +15,8 @@ public interface IDocumentUseCase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>文档ID</returns>
     Task<Guid> UploadAndProcessDocumentAsync(string fileName, string fileType, long fileSize, Stream stream, CancellationToken cancellationToken = default);
+
+    Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default);
+
+    Task DeleteByCollectionNameAsync(Guid collectionId, CancellationToken cancellationToken = default);
 }

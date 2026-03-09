@@ -7,8 +7,8 @@ namespace AI.EnterpriseRAG.Infrastructure.Persistence.Repositories;
 
 public class ChatConversationRepository : IChatConversationRepository
 {
-    private readonly AppContext _dbContext;
-    public ChatConversationRepository(AppContext dbContext)
+    private readonly AppEnterpriseAiContext _dbContext;
+    public ChatConversationRepository(AppEnterpriseAiContext dbContext)
     {  _dbContext = dbContext; }
     public async Task AddAsync(ChatConversation conversation)
     {

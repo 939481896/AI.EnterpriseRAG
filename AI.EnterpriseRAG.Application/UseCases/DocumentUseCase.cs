@@ -1,11 +1,12 @@
 ﻿using AI.EnterpriseRAG.Core.Exceptions;
 using AI.EnterpriseRAG.Core.Extensions;
+using AI.EnterpriseRAG.Core.Utils;
 using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Domain.Enums;
 using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
-using AI.EnterpriseRAG.Core.Utils;
+using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers; // 新增：引入分块服务
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Document = AI.EnterpriseRAG.Domain.Entities.Document;
@@ -13,7 +14,7 @@ using Document = AI.EnterpriseRAG.Domain.Entities.Document;
 namespace AI.EnterpriseRAG.Application.UseCases;
 
 /// <summary>
-/// 文档用例实现（企业级业务编排）
+/// 文档用例实现（企业级业务编排）- 适配新分块逻辑
 /// </summary>
 public class DocumentUseCase : IDocumentUseCase
 {
@@ -21,6 +22,7 @@ public class DocumentUseCase : IDocumentUseCase
     private readonly IEnumerable<IDocumentParser> _documentParsers;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DocumentUseCase> _logger;
+    private readonly DocumentChunkingService _chunkingService; // 新增：分块服务
 
     // 企业级文件存储路径
     private readonly string _storagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Uploads");
@@ -35,9 +37,35 @@ public class DocumentUseCase : IDocumentUseCase
         _documentParsers = documentParsers;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _chunkingService = new DocumentChunkingService(); // 初始化分块服务
 
         if (!Directory.Exists(_storagePath))
             Directory.CreateDirectory(_storagePath);
+    }
+
+    public async Task DeleteByCollectionNameAsync(Guid collectionId, CancellationToken cancellationToken = default)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        try
+        {
+            var llmService = scope.ServiceProvider.GetRequiredService<ILlmService>();
+            var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+            var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
+
+            await vectorStore.ClearAllAsync(cancellationToken);
+
+            _logger.LogInformation("集合清空处理完成");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "集合清空失败");
+        }
+        throw new NotImplementedException();
+    }
+
+    public Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 
     public async Task<Guid> UploadAndProcessDocumentAsync(string fileName, string fileType, long fileSize, Stream stream, CancellationToken cancellationToken = default)
@@ -95,13 +123,34 @@ public class DocumentUseCase : IDocumentUseCase
                 // 6.1 解析文档
                 _logger.LogInformation("开始解析文档：{DocumentId}", document.Id);
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-                var content = await parser.ParseAsync(fileStream);
+                var rawContent = await parser.ParseAsync(fileStream); // 原始文本（含页眉页脚）
 
-                // 根据文件内容自动选择基础版/进阶版Token计数
-                bool useWordBasedToken = IsEnglishContent(content);
-                // 调用增强版分块方法
-                var chunks = content.SplitIntoChunks(useWordBasedToken: useWordBasedToken);
-                // ==============================================
+                // ========== 核心：企业级分块流程 ==========
+                // 6.2.1 清洗文本（去页眉/页脚/版权/页码）
+                var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
+
+                // 6.2.2 判断是否启用单词级Token计数
+                bool useWordBasedToken = IsEnglishContent(cleanContent);
+
+                // 6.2.3 生成结构化语义分块（最终调用SplitIntoChunks）
+                var semanticChunks = _chunkingService.CreateSemanticChunks(
+                    cleanText: cleanContent,
+                    fileName: fileName,
+                    fileType: fileType,
+                    useWordBasedToken: useWordBasedToken);
+
+                // 6.2.4 转换为你的DocumentChunk实体
+                var chunks = semanticChunks.Select((sc, index) => new DocumentChunk
+                {
+                    DocumentId = document.Id,
+                    Content = sc.Content,
+                    Index = index,
+                    TokenCount = useWordBasedToken
+                        ? TokenCounter.EstimateTokenCount(sc.Content, true)
+                        : TokenCounter.EstimateTokenCount(sc.Content),
+                    // SectionTitle = sc.SectionTitle
+                }).ToList();
+                // ========== 核心修改结束 ==========
 
                 _logger.LogInformation("文档{DocumentId}解析完成，分块数：{ChunkCount}", document.Id, chunks.Count);
 
@@ -111,25 +160,12 @@ public class DocumentUseCase : IDocumentUseCase
                 // 6.4 逐块向量化并入库
                 for (int i = 0; i < chunks.Count; i++)
                 {
-                    var chunkContent = chunks[i];
-                    if (string.IsNullOrWhiteSpace(chunkContent))
+                    var chunk = chunks[i];
+                    if (string.IsNullOrWhiteSpace(chunk.Content))
                         continue;
 
-
-                    // 创建分块实体（Token计数和分块逻辑保持一致）
-                    var chunk = new DocumentChunk
-                    {
-                        DocumentId = document.Id,
-                        Content = chunkContent,
-                        Index = i,
-                        TokenCount = useWordBasedToken
-                            ? TokenCounter.EstimateTokenCount(chunkContent, true)
-                            : TokenCounter.EstimateTokenCount(chunkContent)
-                    };
-                    // ==============================================
-
                     // 生成向量（使用新Scope的llmService）
-                    var vector = await llmService.EmbeddingAsync(chunkContent);
+                    var vector = await llmService.EmbeddingAsync(chunk.Content);
                     if (vector == null || vector.Length == 0)
                     {
                         _logger.LogWarning("文档{DocumentId}分块{Index}向量生成失败", document.Id, i);
