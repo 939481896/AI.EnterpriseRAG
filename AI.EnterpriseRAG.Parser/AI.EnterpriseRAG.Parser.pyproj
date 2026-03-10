@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>6c6bd86e-4847-4ecb-b677-f78e718a8ca5</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>AI.EnterpriseRAG.Parser.py</StartupFile>
+    <StartupFile>unstructured_api.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -21,7 +21,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="AI.EnterpriseRAG.Parser.py" />
+    <Compile Include="unstructured_api.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Dockerfile" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
