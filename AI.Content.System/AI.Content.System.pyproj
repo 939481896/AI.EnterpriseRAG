@@ -45,8 +45,11 @@
     <Compile Include="app\Infrastructure\sources\twitter.py" />
     <Compile Include="app\Infrastructure\persistence\models.py" />
     <Compile Include="app\Infrastructure\sources\__init__.py" />
+    <Compile Include="app\infrastructure\__init__.py" />
     <Compile Include="app\main.py" />
     <Compile Include="app\application\pipeline.py" />
+    <Compile Include="start.py" />
+    <Compile Include="test_import.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include=".env" />
@@ -55,7 +58,7 @@
     <Content Include="requirements.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="app\Infrastructure\" />
+    <Folder Include="app\infrastructure\" />
     <Folder Include="app\Infrastructure\persistence\" />
     <Folder Include="app\Infrastructure\sources\" />
     <Folder Include="app\Infrastructure\ai\" />

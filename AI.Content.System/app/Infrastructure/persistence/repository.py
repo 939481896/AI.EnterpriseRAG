@@ -1,5 +1,7 @@
+# app/infrastructure/persistence/repository.py
 from sqlalchemy.orm import Session
 from app.domain.entities import GeneratedContent
+# 导入 models 中的 ContentModel（路径正确）
 from app.infrastructure.persistence.models import ContentModel
 from app.core.logger import get_logger
 
@@ -11,7 +13,7 @@ class ContentRepository:
         self.db = db
 
     def save(self, content: GeneratedContent) -> ContentModel:
-        """保存生成的内容到数据库"""
+        """保存单条生成内容到数据库"""
         db_model = ContentModel(
             source=content.source,
             original_title=content.original_title,
@@ -43,7 +45,7 @@ class ContentRepository:
         return count
 
     def get_by_source(self, source: str, limit: int = 10) -> list[ContentModel]:
-        """按数据源查询"""
+        """按数据源查询生成内容"""
         return self.db.query(ContentModel).filter(
             ContentModel.source == source
         ).order_by(ContentModel.score.desc()).limit(limit).all()
