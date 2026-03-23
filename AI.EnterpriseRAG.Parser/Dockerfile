@@ -1,28 +1,29 @@
-﻿# 基础镜像：Python 3.10 slim（兼容Unstructured，轻量）
-FROM python:3.10.19-slim
+﻿# 使用 Unstructured 官方完整版镜像作为基础
+FROM unstructured-io/unstructured:latest
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+ENV API_KEY="your_secure_api_key_here"
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统级依赖（仅保留必需项，避免OCR依赖增加镜像体积）
-RUN apt update && apt install -y --no-install-recommends \
-    libmagic1 \
-    poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装Python依赖
+# 安装 API 框架依赖（仅补充 FastAPI/uvicorn 等）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    -r requirements.txt
 
-# 复制代码到容器
+# 复制你的 API 代码
 COPY unstructured_api.py .
 
-# 暴露API端口
-EXPOSE 9000
+# 暴露端口
+EXPOSE 8000
 
-# 环境变量（仅保留必需项，注释单独换行）
-# 实时输出日志，便于排查问题
-ENV PYTHONUNBUFFERED=1
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
 
-# 启动命令（4个worker提升并发）
-CMD ["uvicorn", "unstructured_api:app", "--host", "0.0.0.0", "--port", "9000", "--workers", "4"]
+# 启动命令
+CMD ["uvicorn", "unstructured_api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

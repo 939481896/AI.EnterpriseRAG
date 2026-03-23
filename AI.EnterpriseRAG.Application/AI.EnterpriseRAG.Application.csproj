@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AI.EnterpriseRAG.Core\AI.EnterpriseRAG.Core.csproj" />
     <ProjectReference Include="..\AI.EnterpriseRAG.Domain\AI.EnterpriseRAG.Domain.csproj" />
     <ProjectReference Include="..\AI.EnterpriseRAG.Infrastructure\AI.EnterpriseRAG.Infrastructure.csproj" />

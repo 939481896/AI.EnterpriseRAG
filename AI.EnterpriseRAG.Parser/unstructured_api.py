@@ -46,7 +46,7 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 SUPPORTED_TYPES = ["pdf", "docx", "txt", "png", "jpg", "jpeg"]
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
-PARSE_TIMEOUT = 300  # 解析超时时间（5分钟）
+PARSE_TIMEOUT = 600  # 解析超时时间（5分钟）
 
 @app.post("/parse-document")
 async def parse_document(
@@ -96,9 +96,9 @@ async def parse_document(
                 asyncio.to_thread(  # 用线程池执行同步解析逻辑
                     partition,
                     filename=temp_file,
-                    extract_images_in_pdf=True,
+                    extract_images_in_pdf=False,
                     infer_table_structure=True,
-                    remove_background=True,
+                    remove_background=False,
                     languages=["eng", "zh"]
                 ),
                 timeout=PARSE_TIMEOUT

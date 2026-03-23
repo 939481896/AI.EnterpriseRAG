@@ -12,6 +12,7 @@ using AI.EnterpriseRAG.Infrastructure.Services.Llm;
 using AI.EnterpriseRAG.Infrastructure.Services.VectorStores;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Pomelo.EntityFrameworkCore.MySql.Internal;
 using System;
 using AppEnterpriseAiContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext;
 
@@ -29,6 +30,8 @@ builder.Services.AddDbContext<AI.EnterpriseRAG.Infrastructure.Persistence.AppEnt
         mysqloption => {
             mysqloption.EnableRetryOnFailure(); 
             mysqloption.MigrationsAssembly("AI.EnterpriseRAG.Infrastructure");
+            mysqloption.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery); // 禁用延迟加载
+
         });
     // 开发环境启用日志
     if (builder.Environment.IsDevelopment())

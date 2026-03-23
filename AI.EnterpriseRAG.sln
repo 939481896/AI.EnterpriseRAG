@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AI.EnterpriseRAG.WebAPI", "
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AI.EnterpriseRAG.Parser", "AI.EnterpriseRAG.Parser\AI.EnterpriseRAG.Parser.pyproj", "{6C6BD86E-4847-4ECB-B677-F78E718A8CA5}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AI.Content.System", "AI.Content.System\AI.Content.System.pyproj", "{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +50,8 @@ Global
 		{58FFD90F-3DED-4E5C-B1DA-E5EEF1DCC839}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6C6BD86E-4847-4ECB-B677-F78E718A8CA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6C6BD86E-4847-4ECB-B677-F78E718A8CA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,6 +63,7 @@ Global
 		{CBC6674A-3568-44BD-9993-EC25EAFF97D1} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{58FFD90F-3DED-4E5C-B1DA-E5EEF1DCC839} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{6C6BD86E-4847-4ECB-B677-F78E718A8CA5} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {54447075-EDDE-4478-AFB1-58E8C2C140E0}
