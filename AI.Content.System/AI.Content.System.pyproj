@@ -11,6 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>AI.Content.System</Name>
     <RootNamespace>AI.Content.System</RootNamespace>
+    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,17 +23,30 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AI.Content.System.py" />
-    <Compile Include="app\ai\script_generator.py" />
-    <Compile Include="app\ai\topic_generator.py" />
-    <Compile Include="app\config.py" />
-    <Compile Include="app\crawler\hackernews.py" />
-    <Compile Include="app\crawler\reddit.py" />
-    <Compile Include="app\crawler\twitter.py" />
-    <Compile Include="app\db\database.py" />
-    <Compile Include="app\db\models.py" />
+    <Compile Include="app\api\routes.py" />
+    <Compile Include="app\api\__init__.py" />
+    <Compile Include="app\application\scheduler.py" />
+    <Compile Include="app\application\__init__.py" />
+    <Compile Include="app\core\__init__.py" />
+    <Compile Include="app\domain\__init__.py" />
+    <Compile Include="app\Infrastructure\ai\llm_client.py" />
+    <Compile Include="app\core\config.py" />
+    <Compile Include="app\core\logger.py" />
+    <Compile Include="app\domain\entities.py" />
+    <Compile Include="app\domain\services.py" />
+    <Compile Include="app\Infrastructure\ai\__init__.py" />
+    <Compile Include="app\Infrastructure\persistence\db.py" />
+    <Compile Include="app\Infrastructure\persistence\repository.py" />
+    <Compile Include="app\Infrastructure\persistence\__init__.py" />
+    <Compile Include="app\Infrastructure\sources\base.py" />
+    <Compile Include="app\Infrastructure\sources\devto.py" />
+    <Compile Include="app\Infrastructure\sources\hackernews.py" />
+    <Compile Include="app\Infrastructure\sources\reddit.py" />
+    <Compile Include="app\Infrastructure\sources\twitter.py" />
+    <Compile Include="app\Infrastructure\persistence\models.py" />
+    <Compile Include="app\Infrastructure\sources\__init__.py" />
     <Compile Include="app\main.py" />
-    <Compile Include="app\pipeline\pipeline.py" />
-    <Compile Include="app\scheduler.py" />
+    <Compile Include="app\application\pipeline.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include=".env" />
@@ -41,11 +55,26 @@
     <Content Include="requirements.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="app\crawler\" />
-    <Folder Include="app\ai\" />
-    <Folder Include="app\db\" />
+    <Folder Include="app\Infrastructure\" />
+    <Folder Include="app\Infrastructure\persistence\" />
+    <Folder Include="app\Infrastructure\sources\" />
+    <Folder Include="app\Infrastructure\ai\" />
     <Folder Include="app\" />
-    <Folder Include="app\pipeline\" />
+    <Folder Include="app\core\" />
+    <Folder Include="app\domain\" />
+    <Folder Include="app\application\" />
+    <Folder Include="app\api\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="env\">
+      <Id>env</Id>
+      <Version>3.13</Version>
+      <Description>env (Python 3.13 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

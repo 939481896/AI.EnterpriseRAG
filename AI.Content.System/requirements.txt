@@ -1,12 +1,26 @@
-﻿# 核心 Web 框架（指定兼容 3.9 的版本）
-fastapi>=0.100.0,<0.110.0
-uvicorn[standard]>=0.23.0,<0.28.0
+﻿# Web 框架
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
 
-# 其他依赖（保持兼容）
+# HTTP 请求
 requests>=2.31.0
-openai>=1.0.0,<2.0.0
+urllib3>=2.0.7
+
+# AI 客户端
+openai>=1.3.7
+
+# 定时任务
 apscheduler>=3.10.4
-sqlalchemy>=2.0.0,<2.1.0
-sqlite-utils>=3.38.0
+
+# 数据库
+sqlalchemy>=2.0.23
+
+# 配置管理
+pydantic>=2.4.2
 python-dotenv>=1.0.0
+
+# 开发工具
+pytest>=7.4.3
+black>=23.11.0
+flake8>=6.1.0
 snscrape>=0.6.0
