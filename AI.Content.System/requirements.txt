@@ -1,0 +1,12 @@
+﻿# 核心 Web 框架（指定兼容 3.9 的版本）
+fastapi>=0.100.0,<0.110.0
+uvicorn[standard]>=0.23.0,<0.28.0
+
+# 其他依赖（保持兼容）
+requests>=2.31.0
+openai>=1.0.0,<2.0.0
+apscheduler>=3.10.4
+sqlalchemy>=2.0.0,<2.1.0
+sqlite-utils>=3.38.0
+python-dotenv>=1.0.0
+snscrape>=0.6.0
