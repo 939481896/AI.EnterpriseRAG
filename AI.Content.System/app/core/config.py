@@ -1,30 +1,46 @@
 # -*- coding: utf-8 -*-
 from pydantic import Field
-from pydantic_settings import BaseSettings  # 关键：从 pydantic-settings 导入
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 class Settings(BaseSettings):
-    # OpenAI 配置
-    OPENAI_API_KEY: str
-    OPENAI_MODEL: str = Field(default="gpt-4o-mini")
-    
-    # 数据库配置
-    DB_URL: str = Field(default="sqlite:///./content.db")
-    
-    # 爬虫配置
-    PROXY_ENABLE: bool = Field(default=False)
-    PROXY_URL: Optional[str] = Field(default=None)
-    CRAWL_LIMIT: int = Field(default=10)  # 每个源爬取数量
-    REDDIT_URL: str = Field(default="https://www.reddit.com/r/artificial/hot.json")  # Reddit 抓取 URL
-    
-    # 定时任务配置
-    SCHEDULER_INTERVAL_HOURS: int = Field(default=2)
-    
-    # 日志配置
-    LOG_LEVEL: str = Field(default="INFO")
+    # 使用最新的 model_config 替代旧的 class Config
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",          # 允许 .env 中存在类中未定义的变量
+        case_sensitive=False     # 环境变量不区分大小写
+    )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    # --- LLM 配置 ---
+    LLM_PROVIDER: str = "openai"
 
+    # --- OpenAI 配置 ---
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    
+    # --- DeepSeek 配置 ---
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    
+    # --- Gemini 配置 ---
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
+    # --- 数据库配置 ---
+    DB_URL: str = "sqlite:///./content.db"
+    
+    # --- 爬虫配置 ---
+    PROXY_ENABLE: bool = False
+    PROXY_URL: Optional[str] = None
+    CRAWL_LIMIT: int = 10
+    REDDIT_URL: str = "https://www.reddit.com/r/artificial/hot.json"
+    
+    # --- 定时任务配置 ---
+    SCHEDULER_INTERVAL_HOURS: int = 2
+    
+    # --- 日志配置 ---
+    LOG_LEVEL: str = "INFO"
+
+# 实例化
 settings = Settings()

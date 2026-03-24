@@ -7,7 +7,9 @@ class ContentItem:
     source: str
     title: str
     score: int
-    rank_score: Optional[float] = None  # 计算后的排名分
+    url: Optional[str] = None          # 原文链接
+    description: Optional[str] = None  # 原文摘要
+    rank_score: Optional[float] = None # 计算后的排名分
 
 @dataclass
 class Topic:
@@ -24,3 +26,4 @@ class GeneratedContent:
     topic: str
     script: str
     score: float
+    url: Optional[str] = None          # 保留来源链接

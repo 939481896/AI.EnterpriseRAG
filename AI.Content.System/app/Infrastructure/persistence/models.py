@@ -12,6 +12,7 @@ class ContentModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     source = Column(String, index=True)  # 数据源（reddit/hn/devto）
     original_title = Column(String, index=True)  # 原始标题
+    url = Column(String)    # 存储源链接
     topic = Column(String, index=True)  # AI 生成的选题
     script = Column(Text)  # AI 生成的脚本
     score = Column(Float)  # 计算后的排名分

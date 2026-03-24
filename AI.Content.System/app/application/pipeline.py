@@ -1,91 +1,114 @@
+# -*- coding: utf-8 -*-
+import time
 from typing import List
+from sqlalchemy.orm import Session
+
 from app.domain.entities import ContentItem, GeneratedContent
-from app.domain.services import filter_high_quality_items
+from app.domain.services import calculate_rank_score, filter_high_quality_items
 from app.infrastructure.sources.reddit import RedditSource
 from app.infrastructure.sources.hackernews import HackerNewsSource
 from app.infrastructure.sources.devto import DevToSource
 from app.infrastructure.ai.llm_client import LLMClient
 from app.infrastructure.persistence.repository import ContentRepository
+from app.core.config import settings
 from app.core.logger import get_logger
-from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
 
 class ContentGenerationPipeline:
-    """内容生成流水线（应用层核心）"""
     def __init__(self, db: Session):
+        self.db = db
+        self.repository = ContentRepository(db)
+        self.llm_client = LLMClient()
+        
         # 初始化数据源
         self.sources = [
-            RedditSource(),
-            HackerNewsSource(),
-            DevToSource()
+            RedditSource(limit=settings.CRAWL_LIMIT),
+            HackerNewsSource(limit=settings.CRAWL_LIMIT),
+            DevToSource(limit=settings.CRAWL_LIMIT)
         ]
-        # 初始化 AI 客户端
-        self.llm_client = LLMClient()
-        # 初始化数据仓库
-        self.repository = ContentRepository(db)
 
-    def fetch_all_sources(self) -> List[ContentItem]:
-        """抓取所有数据源的内容"""
+    def run(self) -> int:
+        """运行完整流水线"""
+        logger.info("==============================")
+        logger.info("🚀 启动自动化内容生成流水线")
+        logger.info("==============================")
+
+        # 1. 采集数据
+        raw_items = self._fetch_all_sources()
+        if not raw_items:
+            logger.warning("未采集到任何原始数据，流程终止")
+            return 0
+
+        # 2. 评分与过滤
+        # 注意：现在 calculate_rank_score 会自动处理 Entity 里的元数据
+        qualified_items = filter_high_quality_items(raw_items, threshold=30.0)
+        if not qualified_items:
+            logger.info("⚖️ 过滤后无高质量内容，流程终止")
+            return 0
+
+        # 3. AI 生成与存储
+        generated_list = []
+        for i, item in enumerate(qualified_items):
+            logger.info(f"进展: [{i+1}/{len(qualified_items)}] 正在处理: {item.source} -> {item.title[:30]}...")
+            
+            # 💡 关键：为免费版 Gemini 增加频率避让（防止 429 报错）
+            if i > 0:
+                time.sleep(3) 
+
+            generated = self._process_single_item(item)
+            if generated:
+                generated_list.append(generated)
+
+        # 4. 批量保存
+        if generated_list:
+            count = self.repository.bulk_save(generated_list)
+            logger.info(f"🏁 流水线执行完毕！新增入库: {count} 条")
+            return count
+        
+        return 0
+
+    def _fetch_all_sources(self) -> List[ContentItem]:
+        """从所有数据源采集并转换为领域对象"""
         all_items = []
         for source in self.sources:
-            items = source.fetch()
-            all_items.extend(items)
-        logger.info(f"所有数据源共抓取 {len(all_items)} 条内容")
+            try:
+                raw_data = source.fetch_raw()
+                for data in raw_data:
+                    # 💡 这里的关键是：把爬虫抓到的 url 映射到实体中
+                    all_items.append(ContentItem(
+                        source=source.source_name,
+                        title=data.get("title", ""),
+                        score=data.get("score", 0),
+                        url=data.get("url"), # 传递 URL
+                        description=data.get("description") # 传递描述
+                    ))
+            except Exception as e:
+                logger.error(f"源 {source.source_name} 采集异常: {e}")
         return all_items
 
-    def generate_content(self, item: ContentItem) -> List[GeneratedContent]:
-        """为单条内容生成选题和脚本"""
-        generated_contents = []
-        
-        # 生成选题
-        topics = self.llm_client.generate_topic(item.title)
-        if not topics:
-            logger.warning(f"为[{item.title}]生成选题为空，跳过")
-            return []
-        
-        # 为每个选题生成脚本
-        for topic in topics:
+    def _process_single_item(self, item: ContentItem) -> GeneratedContent:
+        """调用 AI 处理单条内容"""
+        try:
+            # 第一步：生成选题（如果 Entity 有描述，可以考虑加进 Prompt）
+            topic = self.llm_client.generate_topic(item.title)
+            if not topic:
+                return None
+            
+            # 第二步：生成脚本
             script = self.llm_client.generate_script(topic)
-            generated_content = GeneratedContent(
+            if not script:
+                return None
+            
+            # 💡 构造最终实体，带上原有的 URL
+            return GeneratedContent(
                 source=item.source,
                 original_title=item.title,
+                url=item.url,  # 确保 URL 被传递到存储层
                 topic=topic,
                 script=script,
                 score=item.rank_score or 0.0
             )
-            generated_contents.append(generated_content)
-        
-        return generated_contents
-
-    def run(self) -> int:
-        """运行完整流水线"""
-        logger.info("========== 启动内容生成流水线 ==========")
-        
-        # 1. 抓取所有数据源内容
-        raw_items = self.fetch_all_sources()
-        if not raw_items:
-            logger.warning("未抓取到任何内容，流水线终止")
-            return 0
-        
-        # 2. 过滤高质量内容
-        high_quality_items = filter_high_quality_items(raw_items)
-        if not high_quality_items:
-            logger.warning("无高质量内容，流水线终止")
-            return 0
-        
-        # 3. 生成选题和脚本
-        all_generated = []
-        for item in high_quality_items:
-            generated = self.generate_content(item)
-            all_generated.extend(generated)
-        
-        if not all_generated:
-            logger.warning("未生成任何内容，流水线终止")
-            return 0
-        
-        # 4. 保存到数据库
-        saved_count = self.repository.bulk_save(all_generated)
-        
-        logger.info(f"========== 流水线完成，共生成并保存 {saved_count} 条内容 ==========")
-        return saved_count
+        except Exception as e:
+            logger.error(f"AI 处理失败 [{item.title[:20]}]: {e}")
+            return None

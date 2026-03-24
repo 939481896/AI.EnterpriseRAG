@@ -1,51 +1,80 @@
-# app/infrastructure/persistence/repository.py
+# -*- coding: utf-8 -*-
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.domain.entities import GeneratedContent
-# 导入 models 中的 ContentModel（路径正确）
 from app.infrastructure.persistence.models import ContentModel
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 class ContentRepository:
-    """内容仓库（封装数据库操作）"""
+    """内容仓库：负责领域实体与数据库模型之间的转换与存储"""
+    
     def __init__(self, db: Session):
         self.db = db
 
-    def save(self, content: GeneratedContent) -> ContentModel:
-        """保存单条生成内容到数据库"""
-        db_model = ContentModel(
-            source=content.source,
-            original_title=content.original_title,
-            topic=content.topic,
-            script=content.script,
-            score=content.score
-        )
-        self.db.add(db_model)
-        self.db.commit()
-        self.db.refresh(db_model)
-        logger.debug(f"保存内容 ID: {db_model.id}, 选题: {content.topic[:20]}...")
-        return db_model
+    def _exists(self, title: str) -> bool:
+        """内部方法：检查标题是否已存在"""
+        return self.db.query(ContentModel).filter(ContentModel.original_title == title).first() is not None
 
-    def bulk_save(self, contents: list[GeneratedContent]) -> int:
-        """批量保存（提升性能）"""
-        db_models = [
-            ContentModel(
-                source=c.source,
-                original_title=c.original_title,
-                topic=c.topic,
-                script=c.script,
-                score=c.score
-            ) for c in contents
-        ]
-        self.db.add_all(db_models)
-        self.db.commit()
-        count = len(db_models)
-        logger.info(f"批量保存 {count} 条生成内容")
-        return count
+    def save(self, content: GeneratedContent) -> Optional[ContentModel]:
+        """保存单条内容（带去重检查）"""
+        try:
+            if self._exists(content.original_title):
+                logger.debug(f"跳过重复内容: {content.original_title[:20]}...")
+                return None
 
-    def get_by_source(self, source: str, limit: int = 10) -> list[ContentModel]:
-        """按数据源查询生成内容"""
+            db_model = ContentModel(
+                source=content.source,
+                original_title=content.original_title,
+                url=getattr(content, 'url', None),  # 兼容处理
+                topic=content.topic,
+                script=content.script,
+                score=content.score
+            )
+            self.db.add(db_model)
+            self.db.commit()
+            self.db.refresh(db_model)
+            return db_model
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"保存内容失败: {e}")
+            return None
+
+    def bulk_save(self, contents: List[GeneratedContent]) -> int:
+        """批量保存新内容"""
+        if not contents:
+            return 0
+            
+        new_models = []
+        try:
+            for c in contents:
+                if not self._exists(c.original_title):
+                    new_models.append(ContentModel(
+                        source=c.source,
+                        original_title=c.original_title,
+                        url=getattr(c, 'url', None),
+                        topic=c.topic,
+                        script=c.script,
+                        score=c.score
+                    ))
+            
+            if not new_models:
+                logger.info("没有新内容需要入库")
+                return 0
+                
+            self.db.add_all(new_models)
+            self.db.commit()
+            count = len(new_models)
+            logger.info(f"成功入库 {count} 条新内容 (跳过 {len(contents) - count} 条重复)")
+            return count
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"批量保存失败: {e}")
+            return 0
+
+    def get_by_source(self, source: str, limit: int = 10) -> List[ContentModel]:
+        """按来源获取最新的高分内容"""
         return self.db.query(ContentModel).filter(
             ContentModel.source == source
-        ).order_by(ContentModel.score.desc()).limit(limit).all()
+        ).order_by(ContentModel.created_at.desc()).limit(limit).all()
