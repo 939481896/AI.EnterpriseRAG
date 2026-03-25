@@ -416,3 +416,64 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# --- Python 通用忽略 ---
+# 字节编译/优化文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 分发包
+dist/
+build/
+*.egg-info/
+*.egg
+
+# 虚拟环境 (根据你常用的命名习惯调整)
+venv/
+.env/
+.venv/
+env/
+ENV/
+# 如果使用了 conda
+*.conda
+
+# 测试覆盖率
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook 检查点
+.ipynb_checkpoints
+
+# --- Visual Studio 2022 特定忽略 ---
+# VS 2022 用户特定文件 (包含断点、布局设置等，不应共享)
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# 构建中间文件 (如果是混合项目或使用了 C++ 扩展)
+obj/
+bin/
+*.log
+
+# --- 操作系统文件 ---
+.DS_Store
+Thumbs.db
+
+# --- 敏感信息 (强烈建议) ---
+# 环境变量文件 (如果包含密码或 Key)
+# .env 
+# 注意：如果你需要共享 .env 模板，可以保留 .env.example 并提交，但忽略真实的 .env
