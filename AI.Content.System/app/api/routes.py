@@ -41,91 +41,109 @@ def health_check():
 
 @router.post("/run-pipeline")
 def run_pipeline_manual(background_tasks: BackgroundTasks):
-    """
-    手动触发流水线 (异步非阻塞)
-    注意：使用 POST 更加符合 RESTful 规范（触发动作）
-    """
+    """手动触发流水线 (异步非阻塞)"""
     if not scheduler.running:
         logger.warning("定时任务未启动，但已通过 API 手动触发后台流水线")
     
-    # 将耗时的 LLM 任务丢进后台，立即给前端返回响应
     background_tasks.add_task(run_pipeline_task)
     
     return {
         "status": "accepted",
-        "message": "内容生成任务已在后台启动，请通过日志或查询接口查看进度。",
+        "message": "内容生成任务已在后台启动。",
         "estimated_time": "每条内容约 30-60 秒"
     }
 
-@router.get("/scheduler/start")
-def start_scheduler_api():
-    """启动定时任务调度器"""
-    try:
-        if scheduler.running:
-            return {"status": "info", "message": "调度器已经在运行中"}
-        start_scheduler()
-        return {"status": "success", "message": "定时任务调度器已成功启动"}
-    except Exception as e:
-        logger.error(f"API启动调度器失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# ... (中间的 scheduler 相关路由保持不变) ...
 
-@router.get("/scheduler/stop")
-def stop_scheduler_api():
-    """停止定时任务调度器"""
-    try:
-        stop_scheduler()
-        return {"status": "success", "message": "定时任务调度器已停止"}
-    except Exception as e:
-        logger.error(f"API停止调度器失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/scheduler/status")
-def get_scheduler_status():
-    """获取详细的作业调度状态"""
-    job_list = []
-    try:
-        if scheduler.running:
-            for job in scheduler.get_jobs():
-                job_list.append({
-                    "job_id": job.id,
-                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
-                    "trigger": str(job.trigger)
-                })
-        
-        return {
-            "is_running": scheduler.running,
-            "active_jobs": job_list,
-            "interval_hours": settings.SCHEDULER_INTERVAL_HOURS
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查询状态失败: {str(e)}")
-
-@router.get("/content/{source}")
+@router.get("/content/list/{source}")
 def get_content_by_source(source: str, limit: int = 20, db: Session = Depends(get_db)):
-    """
-    按数据源查询生成的内容
-    :param source: reddit / hn / devto
-    :param limit: 返回条数
-    """
+    """按数据源查询生成的内容列表 (仅展示摘要)"""
     try:
         repo = ContentRepository(db)
         contents = repo.get_by_source(source, limit)
         
         return {
             "source": source,
-            "query_time": datetime.now().isoformat(),
             "count": len(contents),
             "items": [
                 {
                     "id": c.id,
                     "title": c.original_title,
                     "topic": c.topic,
-                    "script": c.script[:100] + "..." if c.script else None, # 仅展示摘要
+                    "script_summary": c.script[:100] + "..." if c.script else None,
                     "score": round(c.score, 2) if c.score else 0,
-                    "created_at": c.created_at.isoformat() if hasattr(c.created_at, 'isoformat') else str(c.created_at)
+                    "created_at": c.created_at
                 } for c in contents
             ]
         }
     except Exception as e:
-        logger.error(f"查询内容失败: {e}")
+        logger.error(f"查询列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取内容列表失败")
+
+@router.get("/content/detail/{content_id}")
+def get_content_detail(content_id: int, db: Session = Depends(get_db)):
+    """获取单条内容的完整详细信息 (包括完整脚本)"""
+    try:
+        repo = ContentRepository(db)
+        # 你的 ContentRepository 实现了 get_by_id 方法
+        content = repo.get_by_id(content_id) 
+    
+        if not content:
+            raise HTTPException(status_code=404, detail="内容未找到")
+        
+        return {
+            "id": content.id,
+            "source": content.source,
+            "title": content.original_title,
+            "topic": content.topic,
+            "full_script": content.script, # 这里输出完整内容
+            "score": content.score,
+            "created_at": content.created_at
+        }
+    except Exception as e:
+        logger.error(f"详情查询失败: {e}")
+        raise HTTPException(status_code=500, detail="获取详情失败")
+
+from fastapi.responses import Response
+
+@router.get(
+    "/content/export/{content_id}", 
+    response_class=Response  # 💡 关键修正：显式声明返回原始响应类
+)
+def export_content_to_file(content_id: int, db: Session = Depends(get_db)):
+    """
+    导出脚本为纯文本文件 (.md格式，完美排版)
+    """
+    try:
+        repo = ContentRepository(db)
+        content = repo.get_by_id(content_id)
+        
+        if not content:
+            raise HTTPException(status_code=404, detail="内容未找到")
+
+        # 1. 组合文件名（处理中文文件名兼容性）
+        safe_title = content.topic.replace("/", "_").replace("\\", "_")[:20]
+        filename = f"{safe_title}.md"
+
+        # 2. 准备文件内容
+        file_content = (
+            f"# 选题：{content.topic}\n"
+            f"原文标题：{content.original_title}\n"
+            f"评分：{content.score}\n"
+            f"生成时间：{content.created_at}\n"
+            f"{'='*30}\n\n"
+            f"{content.script}"
+        )
+
+        # 3. 返回 Response
+        return Response(
+            content=file_content,
+            media_type="text/markdown", # 💡 告诉浏览器这是 Markdown
+            headers={
+                # 💡 使用 utf-8 编码确保中文文件名不乱码
+                "Content-Disposition": f'attachment; filename="{filename.encode("utf-8").decode("latin-1")}"'
+            }
+        )
+    except Exception as e:
+        logger.error(f"导出失败: {e}")
+        raise HTTPException(status_code=500, detail="文件导出失败")

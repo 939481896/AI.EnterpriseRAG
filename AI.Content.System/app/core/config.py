@@ -12,14 +12,23 @@ class Settings(BaseSettings):
         case_sensitive=False     # 环境变量不区分大小写
     )
 
-    # --- LLM 配置 ---
+    # --- LLM 通用配置 ---
     LLM_PROVIDER: str = "openai"
+
+    # --- 火山方舟 (Volcengine Ark) 配置 ---
+    VOLC_API_KEY: Optional[str] = None
+    # 默认接入点 ID (如使用单模型填这个)
+    VOLC_ENDPOINT_ID: str = ""
+    # 选题专用模型接入点 (建议配置为 DeepSeek 接入点)
+    VOLC_TOPIC_ENDPOINT: Optional[str] = None
+    # 脚本专用模型接入点 (建议配置为 豆包 Pro 接入点)
+    VOLC_SCRIPT_ENDPOINT: Optional[str] = None
 
     # --- OpenAI 配置 ---
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4o-mini"
     
-    # --- DeepSeek 配置 ---
+    # --- DeepSeek 官方 API 配置 ---
     DEEPSEEK_API_KEY: Optional[str] = None
     DEEPSEEK_MODEL: str = "deepseek-chat"
     

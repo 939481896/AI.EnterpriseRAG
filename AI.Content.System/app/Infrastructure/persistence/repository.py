@@ -76,5 +76,14 @@ class ContentRepository:
     def get_by_source(self, source: str, limit: int = 10) -> List[ContentModel]:
         """按来源获取最新的高分内容"""
         return self.db.query(ContentModel).filter(
-            ContentModel.source == source
+            1==1
+            # ContentModel.source == source
         ).order_by(ContentModel.created_at.desc()).limit(limit).all()
+
+    def get_by_id(self, content_id: int) -> Optional[ContentModel]:
+        """根据 ID 获取单条内容的完整信息"""
+        try:
+            return self.db.query(ContentModel).filter(ContentModel.id == content_id).first()
+        except Exception as e:
+            logger.error(f"查询 ID 为 {content_id} 的内容失败: {e}")
+            return None

@@ -432,6 +432,7 @@ build/
 
 # 虚拟环境 (根据你常用的命名习惯调整)
 venv/
+venv311/
 .env/
 .venv/
 env/

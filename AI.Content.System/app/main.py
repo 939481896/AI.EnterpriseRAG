@@ -20,7 +20,7 @@ def startup_event():
     # 初始化数据库
     init_db()
     # 启动定时任务
-    start_scheduler()
+    # start_scheduler()
     logger.info("应用启动完成")
 
 # 事件：关闭时停止定时任务
