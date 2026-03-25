@@ -11,7 +11,7 @@ class DevToSource(BaseSource):
         """抓取 Dev.to 热门内容（深度优化版）"""
         url = "https://dev.to/api/articles"
         
-        # 💡 优化 1：组合多个热门标签，通过多次小批量抓取合成大列表
+        # 优化 1：组合多个热门标签，通过多次小批量抓取合成大列表
         # 如果你希望简单，也可以保留单个标签
         tags = ["ai", "machinelearning", "webdev"] 
         raw_posts_dict = {} # 使用字典通过 URL 或 ID 去重
@@ -40,7 +40,7 @@ class DevToSource(BaseSource):
                 if not title or not article_id:
                     continue
                 
-                # 💡 优化 2：提取更多维度数据，帮助 AI 更好地理解背景
+                # 提取更多维度数据，帮助 AI 更好地理解背景
                 # positive_reactions_count 是点赞数，public_reactions_count 包含评论权重
                 score = article.get("public_reactions_count", 0)
                 
@@ -61,7 +61,7 @@ class DevToSource(BaseSource):
             return result
 
         except Exception as e:
-            # 💡 优化 3：提供更友好的错误分类日志
+            # 提供更友好的错误分类日志
             if "timeout" in str(e).lower():
                 logger.error(f"Dev.to 抓取超时，请检查网络或代理设置")
             else:

@@ -18,10 +18,10 @@ class RedditSource(BaseSource):
     
     def __init__(self, limit: int = None):
         super().__init__(limit=limit)
-        # 💡 优化：基础 URL 保持纯净，参数动态拼接
+        # 基础 URL 保持纯净，参数动态拼接
         self.base_url = "https://www.reddit.com/r/artificial/hot.json"
         
-        # 💡 扩展：更真实的桌面端 User-Agent
+        # 更真实的桌面端 User-Agent
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Version/17.0 Safari/537.36",
@@ -81,7 +81,7 @@ class RedditSource(BaseSource):
                 if not title:
                     continue
                 
-                # 💡 关键：解析出 Pipeline 需要的所有元数据
+                # 解析出 Pipeline 需要的所有元数据
                 raw_posts.append({
                     "title": title,
                     "score": post.get("score", 0),

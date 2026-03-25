@@ -52,7 +52,7 @@ class ContentGenerationPipeline:
         for i, item in enumerate(qualified_items):
             logger.info(f"进展: [{i+1}/{len(qualified_items)}] 正在处理: {item.source} -> {item.title[:30]}...")
             
-            # 💡 关键：为免费版 Gemini 增加频率避让（防止 429 报错）
+            # 为免费版 Gemini 增加频率避让（防止 429 报错）
             if i > 0:
                 time.sleep(3) 
 
@@ -75,7 +75,7 @@ class ContentGenerationPipeline:
             try:
                 raw_data = source.fetch_raw()
                 for data in raw_data:
-                    # 💡 这里的关键是：把爬虫抓到的 url 映射到实体中
+                    # 这里的关键是：把爬虫抓到的 url 映射到实体中
                     all_items.append(ContentItem(
                         source=source.source_name,
                         title=data.get("title", ""),
@@ -90,8 +90,8 @@ class ContentGenerationPipeline:
     def _process_single_item(self, item: ContentItem) -> GeneratedContent:
         """调用 AI 处理单条内容"""
         try:
-            # 第一步：生成选题（如果 Entity 有描述，可以考虑加进 Prompt）
-            topic = self.llm_client.generate_topic(item.title)
+            # 第一步：生成选题
+            topic = self.llm_client.generate_topic(item.title,item.description)
             if not topic:
                 return None
             
@@ -100,7 +100,7 @@ class ContentGenerationPipeline:
             if not script:
                 return None
             
-            # 💡 构造最终实体，带上原有的 URL
+            # 构造最终实体，带上原有的 URL
             return GeneratedContent(
                 source=item.source,
                 original_title=item.title,

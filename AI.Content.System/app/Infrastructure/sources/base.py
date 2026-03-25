@@ -14,7 +14,7 @@ class BaseSource(ABC):
     """爬虫基类（定义统一接口）"""
     source_name: str = "base"
     
-    # 💡 修复点：增加 limit 参数接收，并设置默认值
+    # 增加 limit 参数接收，并设置默认值
     def __init__(self, limit: Optional[int] = None):
         self.session = self._create_session()
         # 优先使用传入的 limit，否则使用配置文件里的默认值
@@ -53,15 +53,15 @@ class BaseSource(ABC):
         """抓取原始数据（子类实现）"""
         pass
 
-    # 💡 优化点：支持将抓取到的 url 和 description 转换到实体中
+    # 支持将抓取到的 url 和 description 转换到实体中
     def parse_to_entity(self, raw_data: dict) -> ContentItem:
         """解析原始数据为领域实体"""
         return ContentItem(
             source=self.source_name,
             title=raw_data.get("title", "").strip(),
             score=raw_data.get("score", 0),
-            url=raw_data.get("url"),             # 💡 关键：传递 URL
-            description=raw_data.get("description") # 💡 关键：传递描述
+            url=raw_data.get("url"),             # 传递 URL
+            description=raw_data.get("description") # 传递描述
         )
 
     def fetch(self) -> List[ContentItem]:
