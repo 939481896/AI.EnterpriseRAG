@@ -34,6 +34,7 @@
     <Compile Include="app\core\logger.py" />
     <Compile Include="app\domain\entities.py" />
     <Compile Include="app\domain\services.py" />
+    <Compile Include="app\Infrastructure\ai\prompts.py" />
     <Compile Include="app\Infrastructure\ai\__init__.py" />
     <Compile Include="app\Infrastructure\persistence\db.py" />
     <Compile Include="app\Infrastructure\persistence\repository.py" />
@@ -41,9 +42,11 @@
     <Compile Include="app\Infrastructure\sources\base.py" />
     <Compile Include="app\Infrastructure\sources\devto.py" />
     <Compile Include="app\Infrastructure\sources\hackernews.py" />
+    <Compile Include="app\Infrastructure\sources\mit_techreview.py" />
     <Compile Include="app\Infrastructure\sources\reddit.py" />
     <Compile Include="app\Infrastructure\sources\twitter.py" />
     <Compile Include="app\Infrastructure\persistence\models.py" />
+    <Compile Include="app\Infrastructure\sources\venturebeat.py" />
     <Compile Include="app\Infrastructure\sources\__init__.py" />
     <Compile Include="app\infrastructure\__init__.py" />
     <Compile Include="app\main.py" />

@@ -8,6 +8,8 @@ from app.domain.services import calculate_rank_score, filter_high_quality_items
 from app.infrastructure.sources.reddit import RedditSource
 from app.infrastructure.sources.hackernews import HackerNewsSource
 from app.infrastructure.sources.devto import DevToSource
+from app.infrastructure.sources.mit_techreview import MITTechReviewSource
+from app.infrastructure.sources.venturebeat import VentureBeatSource
 from app.infrastructure.ai.llm_client import LLMClient
 from app.infrastructure.persistence.repository import ContentRepository
 from app.core.config import settings
@@ -25,7 +27,9 @@ class ContentGenerationPipeline:
         self.sources = [
             RedditSource(limit=settings.CRAWL_LIMIT),
             HackerNewsSource(limit=settings.CRAWL_LIMIT),
-            DevToSource(limit=settings.CRAWL_LIMIT)
+            DevToSource(limit=settings.CRAWL_LIMIT),
+            MITTechReviewSource(limit=settings.CRAWL_LIMIT),
+            VentureBeatSource(limit=settings.CRAWL_LIMIT)
         ]
 
     def run(self) -> int:
@@ -94,9 +98,11 @@ class ContentGenerationPipeline:
             topic = self.llm_client.generate_topic(item.title,item.description)
             if not topic:
                 return None
-            
+            # 赛道分类
+            category = self.llm_client.classify_topic(topic, item.description)
+
             # 第二步：生成脚本
-            script = self.llm_client.generate_script(topic)
+            script = self.llm_client.generate_script(topic,item.description,category)
             if not script:
                 return None
             
@@ -106,6 +112,7 @@ class ContentGenerationPipeline:
                 original_title=item.title,
                 url=item.url,  # 确保 URL 被传递到存储层
                 topic=topic,
+                category=category,
                 script=script,
                 score=item.rank_score or 0.0
             )

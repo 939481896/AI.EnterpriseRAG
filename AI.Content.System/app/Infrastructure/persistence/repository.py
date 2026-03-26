@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import List, Optional
+from unicodedata import category
 from sqlalchemy.orm import Session
 from app.domain.entities import GeneratedContent
 from app.infrastructure.persistence.models import ContentModel
@@ -55,6 +56,7 @@ class ContentRepository:
                         original_title=c.original_title,
                         url=getattr(c, 'url', None),
                         topic=c.topic,
+                        category=c.category,
                         script=c.script,
                         score=c.score
                     ))

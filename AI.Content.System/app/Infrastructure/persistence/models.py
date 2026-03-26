@@ -1,4 +1,5 @@
 # app/infrastructure/persistence/models.py
+from unicodedata import category
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime
 from sqlalchemy.sql import func
 # 导入 db.py 中定义的 Base（正确路径）
@@ -14,6 +15,7 @@ class ContentModel(Base):
     original_title = Column(String, index=True)  # 原始标题
     url = Column(String)    # 存储源链接
     topic = Column(String, index=True)  # AI 生成的选题
+    category=Column(String) # AI生成的分类
     script = Column(Text)  # AI 生成的脚本
     score = Column(Float)  # 计算后的排名分
     created_at = Column(DateTime, default=func.now())  # 创建时间
