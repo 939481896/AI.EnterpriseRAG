@@ -48,6 +48,7 @@
     <Compile Include="app\Infrastructure\persistence\models.py" />
     <Compile Include="app\Infrastructure\sources\venturebeat.py" />
     <Compile Include="app\Infrastructure\sources\__init__.py" />
+    <Compile Include="app\infrastructure\web_extractor.py" />
     <Compile Include="app\infrastructure\__init__.py" />
     <Compile Include="app\main.py" />
     <Compile Include="app\application\pipeline.py" />

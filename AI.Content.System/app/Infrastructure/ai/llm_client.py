@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# app.infrasturcture.ai.llm_client.py
 import os
 import time
 import httpx
@@ -138,12 +139,12 @@ class LLMClient:
         except Exception:
             return ""
 
-    def generate_script(self, topic: str,category:str) -> str:
+    def generate_script(self, topic: str,description:str,category:str) -> str:
         """为选题生成脚本 - 优化时长、排版、避坑与标签"""
         logger.info(f"正在生成脚本: {topic[:20]}...")
         
         # 获取提示词
-        prompt = self._get_script_prompt(topic,category)
+        prompt = self._get_script_prompt(topic,description,category)
         
         try:
             # 建议使用 豆包 Pro 接入点，它的口语化程度非常高
@@ -154,6 +155,42 @@ class LLMClient:
             )
         except Exception as e:
             return f"脚本生成失败: {e}"
+
+    def summarize_article(self, title: str, html_or_md: str) -> str:
+        """
+        【新增：网页深度总结】
+        在生成选题前，先对抓取到的正文进行压缩，提取核心干货
+        """
+        if not html_or_md or len(html_or_md) < 200:
+            return ""
+
+        logger.info(f"正在对文章进行深度总结: {title[:20]}...")
+        
+        # 限制输入长度，避免超过大模型上下文窗口 (取前 6000 字符)
+        context_text = html_or_md[:6000]
+
+        prompt = (
+            f"你是一名资深内参编辑。请阅读以下文章的正文，并提炼出核心干货点。\n\n"
+            f"文章标题：{title}\n"
+            f"文章正文：\n{context_text}\n\n"
+            f"【要求】\n"
+            f"1. 提取 3-5 个最有价值的观点或事实，每条不超过 50 字。\n"
+            f"2. 语言极其简练，直接上干货，不要口水话。\n"
+            f"3. 如果文章包含具体的步骤、工具名称或数据，请务必保留。\n"
+            f"4. 返回格式：直接列出要点，不要任何前导词（如：这篇文章讲了...）。"
+        )
+
+        try:
+            # 总结任务建议使用默认模型或选题模型
+            summary = self._ask_llm_with_retry(
+                prompt, 
+                temperature=0.3, # 降低随机性，保证总结的严谨
+                model_override=self.topic_model 
+            )
+            return summary.strip()
+        except Exception as e:
+            logger.warning(f"文章总结失败: {e}")
+            return ""
 
     def classify_topic(self, title: str, description: str = "") -> str:
         """
@@ -180,7 +217,7 @@ class LLMClient:
             """.strip().format(content)
 
         try:
-            category = self._ask_llm_with_retry(prompt, temperature=0.1).strip().lower()
+            category = self._ask_llm_with_retry(prompt, temperature=0.1,model_override=self.topic_model).strip().lower()
             valid_categories = ["ai_tech", "workplace", "finance", "life", "education", "business"]
             return category if category in valid_categories else "ai_tech"
         except Exception as e:

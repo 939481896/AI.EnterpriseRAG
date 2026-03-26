@@ -16,8 +16,8 @@ class VentureBeatSource(BaseSource):
             resp = self.session.get(url, timeout=15)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
-
-            for article in soup.select(".post-title a")[:self.limit]:
+            articles = soup.select("article.article-wrapper") or soup.select(".post-block")
+            for article in articles[:self.limit]:
                 title = article.get_text(strip=True)
                 href = article["href"]
                 raw.append({

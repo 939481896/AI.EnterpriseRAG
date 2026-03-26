@@ -16,6 +16,7 @@ class ContentModel(Base):
     url = Column(String)    # 存储源链接
     topic = Column(String, index=True)  # AI 生成的选题
     category=Column(String) # AI生成的分类
+    description=Column(Text) # 文档摘要描述
     script = Column(Text)  # AI 生成的脚本
     score = Column(Float)  # 计算后的排名分
     created_at = Column(DateTime, default=func.now())  # 创建时间

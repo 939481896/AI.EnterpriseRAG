@@ -96,6 +96,8 @@ def get_content_detail(content_id: int, db: Session = Depends(get_db)):
             "source": content.source,
             "title": content.original_title,
             "topic": content.topic,
+            "description":content.description,
+            "url":content.url,
             "full_script": content.script, # 这里输出完整内容
             "score": content.score,
             "created_at": content.created_at

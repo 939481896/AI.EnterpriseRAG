@@ -25,6 +25,7 @@ class GeneratedContent:
     original_title: str
     topic: str
     category:str
+    description:str
     script: str
     score: float
     url: Optional[str] = None          # 保留来源链接

@@ -57,6 +57,7 @@ class ContentRepository:
                         url=getattr(c, 'url', None),
                         topic=c.topic,
                         category=c.category,
+                        description=c.description,
                         script=c.script,
                         score=c.score
                     ))
