@@ -17,12 +17,35 @@ using Microsoft.Extensions.Options;
 using Pomelo.EntityFrameworkCore.MySql.Internal;
 using System;
 using Xceed.Document.NET;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using BCrypt.Net;
 using AppEnterpriseAiContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext;
 
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = "rag.auth",
+            ValidAudience = "rag.api",
+
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes("SUPER_SECRET_KEY_123456"))
+        };
+    });
 
 // ========== 1. 配置绑定 ==========
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LlmOptions"));
@@ -163,6 +186,7 @@ app.Use(async (context, next) =>
     }
 });
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
