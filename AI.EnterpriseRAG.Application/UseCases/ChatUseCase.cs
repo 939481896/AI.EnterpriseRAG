@@ -109,7 +109,7 @@ public class ChatUseCase : IChatUseCase
             }
 
             // ==============================================
-            // 5. Rerank 重排（企业级精度）
+            // 5. Rerank 重排
             // ==============================================
             validChunks = await _rerankService.RerankAsync(question, validChunks, take: 3, cancellationToken);
 

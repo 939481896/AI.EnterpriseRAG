@@ -65,4 +65,8 @@ public class DocumentChunk
     /// </summary>
     public int SectionLevel { get; set; }
 
+    public string KeyWords { get; set; }
+
+    public string Embedding { get; set; }
+
 }

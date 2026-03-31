@@ -22,6 +22,7 @@ namespace AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers
             _options = vectorStoreOptions.Value.Unstructured;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-API-Key", _options.ApiKey);
+            _httpClient.Timeout = TimeSpan.FromMinutes(5);
         }
 
         public async Task<List<UnstructuredChunk>> ParseDocumentAsync(
@@ -60,8 +61,14 @@ namespace AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers
     // ==========================================
     public class UnstructuredResponse
     {
+        [JsonPropertyName("success")]
         public bool Success { get; set; }
+
+        [JsonPropertyName("chunks")]
         public List<UnstructuredChunk> Chunks { get; set; } = new();
+
+        [JsonPropertyName("total_chunks")]
+        public int TotalChunks { get; set; }
     }
 
     public class UnstructuredChunk
