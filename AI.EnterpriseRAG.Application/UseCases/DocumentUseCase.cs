@@ -121,10 +121,12 @@ public class DocumentUseCase : IDocumentUseCase
                 var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
 
                 // 6.1 解析文档
+                /* 自定义解析
                 _logger.LogInformation("开始解析文档：{DocumentId}", document.Id);
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
                 var rawContent = await parser.ParseAsync(fileStream); // 原始文本（含页眉页脚）
-
+                
+               
                 // ========== 核心：企业级分块流程 ==========
                 // 6.2.1 清洗文本（去页眉/页脚/版权/页码）
                 var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
@@ -139,6 +141,7 @@ public class DocumentUseCase : IDocumentUseCase
                     fileType: fileType,
                     useWordBasedToken: useWordBasedToken);
 
+
                 // 6.2.4 转换为你的DocumentChunk实体
                 var chunks = semanticChunks.Select((sc, index) => new DocumentChunk
                 {
@@ -150,8 +153,23 @@ public class DocumentUseCase : IDocumentUseCase
                         : TokenCounter.EstimateTokenCount(sc.Content),
                     // SectionTitle = sc.SectionTitle
                 }).ToList();
-                // ========== 核心修改结束 ==========
+                */
+                // 6.1 调用 Unstructured 智能解析
+                using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+                var unstructuredClient = scope.ServiceProvider.GetRequiredService<UnstructuredClient>();
+                var rawContent = await unstructuredClient.ParseDocumentAsync(fileStream, document.Name);
 
+                // 6.2 直接转换成你的 DocumentChunk
+                var chunks  = rawContent.Select((chunk, index) => new DocumentChunk
+                {
+                    DocumentId = document.Id,
+                    Content = chunk.Content,
+                    Index = index,
+                    TokenCount = TokenCounter.EstimateTokenCount(chunk.Content),
+                    // 额外信息你也可以存
+                    // PageNumber = chunk.page_number,
+                    SectionTitle = chunk.Title
+                }).ToList();
                 _logger.LogInformation("文档{DocumentId}解析完成，分块数：{ChunkCount}", document.Id, chunks.Count);
 
                 // 6.3 初始化向量库

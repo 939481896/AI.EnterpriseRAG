@@ -24,12 +24,22 @@ public interface IVectorStore
     /// <summary>
     /// 相似性检索
     /// </summary>
+    /// <param name="collectionName">向量集合租户</param>
     /// <param name="queryVector">查询向量</param>
     /// <param name="topK">返回数量</param>
+    /// <param name="filter">支持过滤检索（权限、业务线、部门</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>匹配的分块</returns>
-    Task<List<DocumentChunk>> SearchAsync(float[] queryVector, int topK = 3, CancellationToken cancellationToken = default);
-
+    Task<List<DocumentChunk>> SearchAsync(string collectionName,float[] queryVector, int topK = 3, Dictionary<string, object>? filter = null, CancellationToken cancellationToken = default);
+    
+    //跨Collection并行检索
+    Task<List<DocumentChunk>> SearchAcrossCollectionsAsync(
+        IEnumerable<string> collectionNames,  // 目标Collection列表
+        float[] queryVector,
+        int perCollectionTopK = 20,  // 每个Collection取20条
+        int finalTopK = 10,         // 最终返回10条
+        Dictionary<string, object>? globalFilter = null,  // 全局权限过滤
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// 根据文档ID删除对应向量（单文档）
     /// </summary>

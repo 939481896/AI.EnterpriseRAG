@@ -21,6 +21,8 @@ public class ChatUseCase : IChatUseCase
     private readonly IVectorStore _vectorStore;
     private readonly IChatConversationRepository _chatRepo;
     private readonly ILogger<ChatUseCase> _logger;
+    private readonly IPermissionService _permissionService;
+    private readonly IRerankService _rerankService;
 
     // 缓存向量库CollectionID，避免重复初始化（线程安全）
     private string _cachedCollectionId;
@@ -34,15 +36,133 @@ public class ChatUseCase : IChatUseCase
         ILlmService llmService,
         IVectorStore vectorStore,
         IChatConversationRepository chatRepo,
+        IPermissionService permissionService,
+        IRerankService rerankService,
         ILogger<ChatUseCase> logger)
     {
         _llmService = llmService;
         _vectorStore = vectorStore;
         _chatRepo = chatRepo;
+        _permissionService = permissionService;
+        _rerankService= rerankService;
         _logger = logger;
     }
 
-    public async Task<(string Answer, List<string> References, decimal CostSeconds)> ChatAsync(string userId, string question, CancellationToken cancellationToken = default)
+    public async Task<(string Answer, List<string> References, decimal CostSeconds)> ChatAsync(
+    string userId,
+    string question,
+    CancellationToken cancellationToken = default)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        float? avgSimilarity = null;
+        int contextTokenCount = 0;
+        int promptTokenCount = 0;
+        List<string> validReferences = new List<string>();
+
+        try
+        {
+            ValidateInput(userId, question);
+            question = question.Trim();
+            _logger.LogInformation("用户{UserId}发起问答：{Question}", userId, question);
+
+            // ==============================================
+            // 1. 多租户路由：获取用户专属向量集合
+            // ==============================================
+            var collectionName = await _permissionService.GetUserCollectionNameAsync(userId, cancellationToken);
+
+            // ==============================================
+            // 2. 权限过滤：获取用户可访问的文档ID
+            // ==============================================
+            var allowedDocIds = await _permissionService.GetUserAllowedDocumentIdsAsync(userId, cancellationToken);
+            if (!allowedDocIds.Any())
+            {
+                _logger.LogWarning("用户{UserId}无文档权限", userId);
+                return ("您暂无文档访问权限", validReferences, (decimal)stopwatch.Elapsed.TotalSeconds);
+            }
+
+            // 3. 生成问题向量
+            var queryVector = await _llmService.EmbeddingAsync(question, cancellationToken);
+            if (queryVector == null || queryVector.Length == 0)
+                throw new BusinessException(500, LLMConstants.VECTOR_GENERATE_FAILED_MSG);
+
+            // ==============================================
+            // 4. 带权限过滤的向量检索
+            // ==============================================
+            var filter = new Dictionary<string, object>
+            {
+                ["document_id"] = allowedDocIds
+            };
+
+            var matchedChunks = await _vectorStore.SearchAsync(
+                collectionName,
+                queryVector,
+                topK: 20, // 先检索20条
+                filter: filter,
+                cancellationToken: cancellationToken);
+
+            var validChunks = FilterValidChunks(matchedChunks);
+            if (!validChunks.Any())
+            {
+                _logger.LogWarning("用户{UserId}未检索到有效内容", userId);
+                return ("知识库中未找到相关答案", validReferences, (decimal)stopwatch.Elapsed.TotalSeconds);
+            }
+
+            // ==============================================
+            // 5. Rerank 重排（企业级精度）
+            // ==============================================
+            validChunks = await _rerankService.RerankAsync(question, validChunks, take: 3, cancellationToken);
+
+            // ==============================================
+            // 6. 文本清洗
+            // ==============================================
+            //var cleanedTexts = validChunks.Select(c => _textCleaner.Clean(c.Content)).ToList();
+            var clearedTExts = validChunks;
+            // ==============================================
+            // 7. 生成溯源引用（文件名+页码）
+            // ==============================================
+            //validReferences = validChunks.Select(c =>$"文档：{c.DocumentId} 页码： 相似度：{c.Similarity:F2}").ToList();
+            validReferences = validChunks.Select(c => c.Content).ToList();
+
+            avgSimilarity = (float)validChunks.Average(c => c.Similarity);
+
+            // 8. 构建上下文
+            var context = BuildAndTruncateContext(validReferences, out contextTokenCount);
+            var prompt = BuildRagPrompt(context, question);
+            promptTokenCount = TokenCounter.EstimateTokenCount(prompt);
+            ValidatePromptTokenCount(promptTokenCount);
+
+            // 9. 调用大模型
+            var answer = await _llmService.ChatAsync(prompt, cancellationToken);
+
+            // 10. 记录与返回
+            stopwatch.Stop();
+            var costSeconds = (decimal)stopwatch.Elapsed.TotalSeconds;
+
+            await RecordChatConversation(
+                userId, question, answer, validReferences, costSeconds,
+                true, avgSimilarity, contextTokenCount, promptTokenCount);
+
+            _logger.LogInformation("用户{UserId} 完成，耗时：{Time:F2}s", userId, costSeconds);
+            return (answer, validReferences, costSeconds);
+        }
+        catch (BusinessException ex)
+        {
+            stopwatch.Stop();
+            await RecordChatConversation(userId, question, $"异常：{ex.Message}", new List<string>(), (decimal)stopwatch.Elapsed.TotalSeconds, false);
+            _logger.LogWarning(ex, "用户{UserId}业务异常", userId);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            await RecordChatConversation(userId, question, "系统错误", new List<string>(), (decimal)stopwatch.Elapsed.TotalSeconds, false);
+            _logger.LogError(ex, "用户{UserId}系统异常", userId);
+            throw new BusinessException(500, "服务异常，请稍后重试");
+        }
+    }
+
+    public async Task<(string Answer, List<string> References, decimal CostSeconds)> OldChatAsync(string userId, string question, CancellationToken cancellationToken = default)
     {
         // 初始化性能计时器
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -71,7 +191,7 @@ public class ChatUseCase : IChatUseCase
             }
 
             // 4. 向量检索（过滤低相似度结果）
-            var matchedChunks = await _vectorStore.SearchAsync(queryVector, LLMConstants.DEFAULT_SEARCH_TOP_K, cancellationToken);
+            var matchedChunks = await _vectorStore.SearchAsync(collectionID, queryVector, LLMConstants.DEFAULT_SEARCH_TOP_K,null, cancellationToken);
             var validChunks = FilterValidChunks(matchedChunks);
 
             // 记录有效检索结果和相似度

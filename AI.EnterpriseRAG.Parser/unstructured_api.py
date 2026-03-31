@@ -96,7 +96,7 @@ async def parse_document(
                 asyncio.to_thread(  # 用线程池执行同步解析逻辑
                     partition,
                     filename=temp_file,
-                    extract_images_in_pdf=False,
+                    extract_images_in_pdf=True,
                     infer_table_structure=True,
                     remove_background=False,
                     languages=["eng", "zh"]

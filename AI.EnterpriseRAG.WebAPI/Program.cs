@@ -7,14 +7,20 @@ using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
 using AI.EnterpriseRAG.Infrastructure.Configurations;
 using AI.EnterpriseRAG.Infrastructure.Persistence;
 using AI.EnterpriseRAG.Infrastructure.Persistence.Repositories;
+using AI.EnterpriseRAG.Infrastructure.Services;
 using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
 using AI.EnterpriseRAG.Infrastructure.Services.Llm;
 using AI.EnterpriseRAG.Infrastructure.Services.VectorStores;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Pomelo.EntityFrameworkCore.MySql.Internal;
 using System;
+using Xceed.Document.NET;
 using AppEnterpriseAiContext = AI.EnterpriseRAG.Infrastructure.Persistence.AppEnterpriseAiContext;
+
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +57,8 @@ builder.Services.AddScoped<DocumentChunkingService,DocumentChunkingService>();
 builder.Services.AddScoped<IDocumentParser,PdfDocumentParser>();
 builder.Services.AddScoped<IDocumentParser,TxtDocumentParser>();
 
+
+
 // 大模型服务（企业级多模型切换）
 var llmOptions = builder.Configuration.GetSection("LlmOptions").Get<LlmOptions>();
 if (llmOptions?.DefaultModel == "ollama")
@@ -65,8 +73,36 @@ else
 {
     builder.Services.AddScoped<ILlmService, OllamaLlmService>();
 }
+
+builder.Services.AddScoped<UnstructuredClient>();
+
+
 // 向量库服务
-builder.Services.AddScoped<IVectorStore, ChromaVectorStore>();
+// ========== 向量库自动切换==========
+var vectorStoreOptions = builder.Configuration.GetSection("VectorStoreOptions").Get<VectorStoreOptions>();
+if (vectorStoreOptions == null)
+    throw new Exception("VectorStoreOptions 配置不存在");
+
+if (vectorStoreOptions.DefaultType.Equals("Chroma", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IVectorStore, ChromaVectorStore>();
+    Console.WriteLine("已启用向量库：Chroma");
+}
+else if (vectorStoreOptions.DefaultType.Equals("Qdrant", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IVectorStore, QdrantVectorStore>();
+    Console.WriteLine("已启用向量库：Qdrant");
+}
+else
+{
+    throw new Exception("请配置 VectorStoreOptions:DefaultType = Chroma 或 Qdrant");
+}
+
+// 重排
+builder.Services.AddHttpClient<IRerankService, BgeRerankService>();
+
+// 权限 + 多租户
+builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 
 // ========== 6. 用例注册 ==========
 builder.Services.AddScoped<IDocumentUseCase, DocumentUseCase>();
