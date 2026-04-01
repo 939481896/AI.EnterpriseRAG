@@ -8,6 +8,7 @@ using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
 using AI.EnterpriseRAG.Infrastructure.Authorization;
 using AI.EnterpriseRAG.Infrastructure.Configurations;
+using AI.EnterpriseRAG.Infrastructure.Middleware;
 using AI.EnterpriseRAG.Infrastructure.Persistence;
 using AI.EnterpriseRAG.Infrastructure.Persistence.Repositories;
 using AI.EnterpriseRAG.Infrastructure.Security;
@@ -22,9 +23,37 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using Serilog.Events;
 using System.Text;
+using Serilog.Sinks.File;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+Console.WriteLine($"当前工作目录: {Directory.GetCurrentDirectory()}");
+
+
+// 全局日志配置（双输出：控制台 + 文件）
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("System", LogEventLevel.Warning)
+
+    // 控制台输出
+    .WriteTo.Console()
+
+    // 文件输出（绝对路径 + 正确格式）
+    .WriteTo.File(
+        path: "Logs/app-.log",
+        rollingInterval: RollingInterval.Day,
+        fileSizeLimitBytes: 1024 * 1024 * 100,
+        rollOnFileSizeLimit: true,
+        retainedFileCountLimit: 30,
+        encoding: System.Text.Encoding.UTF8
+    )
+
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +77,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"] ??
                 throw new InvalidOperationException("JWT 密钥未配置"))),
 
-            // 【关键修复】让系统正确识别 Claim
+            // 让系统正确识别 Claim
             NameClaimType = System.Security.Claims.ClaimTypes.Name,
             RoleClaimType = "perm", // 权限用 perm 作为 Claim
         };
@@ -204,13 +233,17 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 var app = builder.Build();
 
+
+
+
 // ========== 中间件顺序（固定标准） ==========
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseMiddleware<GlobalLogMiddleware>();
+app.UseMiddleware<PermissionAuditMiddleware>();
 // 全局异常处理
 app.Use(async (context, next) =>
 {
@@ -221,16 +254,21 @@ app.Use(async (context, next) =>
     catch (BusinessException ex)
     {
         context.Response.StatusCode = ex.Code;
+        Log.Error(ex, "业务异常：{Msg}", ex.Message); // 改为 Serilog
+
         await context.Response.WriteAsJsonAsync(Result.Fail(ex.Message, ex.Code));
     }
-    catch (UnauthorizedAccessException)
+    catch (UnauthorizedAccessException Uae)
     {
         context.Response.StatusCode = 401;
+        Log.Warning(Uae, "未授权访问");
+
         await context.Response.WriteAsJsonAsync(Result.Fail("未授权或令牌过期", 401));
     }
     catch (Exception ex)
     {
         context.Response.StatusCode = 500;
+        Log.Error(ex, "全局异常：{Msg}", ex.Message);
         await context.Response.WriteAsJsonAsync(Result.Fail($"服务器错误：{ex.Message}", 500));
     }
 });
