@@ -2,8 +2,8 @@
 using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Infrastructure.Persistence;
 using AI.EnterpriseRAG.Infrastructure.Security;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Xceed.Document.NET;
 
 namespace AI.EnterpriseRAG.Application.Authorization;
 
@@ -11,61 +11,73 @@ public class AuthService
 {
     private readonly AppEnterpriseAiContext _context;
     private readonly TokenService _tokenService;
+    private readonly IPasswordHasher<SysUser> _passwordHasher;
 
-    public AuthService(AppEnterpriseAiContext context, TokenService tokenService)
+
+    public AuthService(AppEnterpriseAiContext context, TokenService tokenService,IPasswordHasher<SysUser> passwordHasher)
     {
         _context = context;
         _tokenService = tokenService;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
-        // 1️⃣ Multi-tenant lookup
+        // 1️ 多租户查询 + 校验用户是否启用
         var user = await _context.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Account == request.Account
                                    && u.TenantId == request.TenantId);
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            throw new UnauthorizedAccessException("认证失败：账号、密码或租户信息不正确");
-        }
+        // 用户不存在 / 用户被禁用 / 密码错误 统一提示，防枚举攻击
+        if (user == null || !user.IsEnabled)
+            throw new UnauthorizedAccessException("认证失败");
 
-        // 2️⃣ Fetch Permissions using the helper method
+        var verify = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+        if (verify != PasswordVerificationResult.Success)
+            throw new UnauthorizedAccessException("认证失败");
+
+        // 2️ 获取权限
         var permissions = await GetUserPermissionsAsync(user.Id);
 
-        // 3️⃣ Token generation
+        // 3️ 生成令牌
         var accessToken = _tokenService.GenerateAccessToken(user, permissions);
         var refreshToken = _tokenService.GenerateRefreshToken();
 
-        // 4️⃣ Transactional Token Update
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        // 支持 MySQL 重试的事务
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
         {
-            var existingTokens = _context.RefreshTokens.Where(t => t.UserId == user.Id);
-            _context.RefreshTokens.RemoveRange(existingTokens);
-
-            _context.RefreshTokens.Add(new RefreshToken
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserId = user.Id,
-                Token = refreshToken,
-                ExpireAt = DateTime.UtcNow.AddDays(7)
-            });
+                var existingTokens = _context.RefreshTokens.Where(t => t.UserId == user.Id);
+                _context.RefreshTokens.RemoveRange(existingTokens);
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw new Exception("登录过程中出现系统错误");
-        }
+                _context.RefreshTokens.Add(new RefreshToken
+                {
+                    UserId = user.Id,
+                    Token = refreshToken,
+                    ExpireAt = DateTime.UtcNow.AddDays(7),
+                    Device = "web",
+                    IsRevoked = false
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw new Exception("登录失败，请稍后重试");
+            }
+        });
 
         return new LoginResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            ExpiresIn = 3600,
+            ExpiresIn = 1800,
             UserName = user.UserName,
             Permissions = permissions
         };
@@ -93,14 +105,14 @@ public class AuthService
         };
     }
 
-    // 🔥 Added Helper Method to fix the "Not Found" error
     private async Task<List<string>> GetUserPermissionsAsync(long userId)
     {
-        return await _context.UserRoles
+        return await _context.Permissions
             .AsNoTracking()
-            .Where(ur => ur.UserId == userId)
-            .SelectMany(ur => ur.Role.RolePermissions)
-            .Select(rp => rp.Permission.Code)
+            .Where(p => p.RolePermissions
+                .Any(rp => rp.Role.UserRoles
+                    .Any(ur => ur.UserId == userId)))
+            .Select(p => p.Code)
             .Distinct()
             .ToListAsync();
     }

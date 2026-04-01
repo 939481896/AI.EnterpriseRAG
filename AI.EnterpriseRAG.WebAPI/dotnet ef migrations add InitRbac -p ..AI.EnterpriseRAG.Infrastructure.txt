@@ -1,0 +1,3 @@
+dotnet ef migrations add InitRbac -p ..AI.EnterpriseRAG.Infrastructure
+
+dotnet ef migrations remove -p ../AI.EnterpriseRAG.Infrastructure

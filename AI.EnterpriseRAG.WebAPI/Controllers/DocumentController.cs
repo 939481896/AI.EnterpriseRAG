@@ -1,6 +1,7 @@
 ﻿using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
+using AI.EnterpriseRAG.WebAPI.Attribute;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
@@ -29,6 +30,7 @@ public class DocumentController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>文档处理结果</returns>
     [HttpPost("upload")]
+    [Permission("")]
     [ProducesResponseType(typeof(Result<DocumentUploadResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadDocument(IFormFile file, CancellationToken cancellationToken = default)
@@ -65,6 +67,7 @@ public class DocumentController : ControllerBase
     }
 
     [HttpDelete("deleteCollection")]
+    [Permission("")]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteByCollectionNameAsync(Guid guid ,CancellationToken cancellationToken=default)
     {

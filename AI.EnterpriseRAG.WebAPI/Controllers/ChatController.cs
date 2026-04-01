@@ -1,7 +1,11 @@
 ﻿using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
+using AI.EnterpriseRAG.WebAPI.Attribute;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
@@ -11,6 +15,7 @@ namespace AI.EnterpriseRAG.WebAPI.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Permission("chat.manage")]
 public class ChatController : ControllerBase
 {
     private readonly IChatUseCase _chatUseCase;
@@ -27,12 +32,19 @@ public class ChatController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>问答结果</returns>
     [HttpPost("ask")]
-    [ProducesResponseType(typeof(Result<ChatResponseDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+    [Permission("chat.ask")]
     public async Task<IActionResult> Ask([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
     {
+        // 从 Token 自动获取当前登录用户 ID，禁止前端传入！
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(Result.Fail("用户未登录"));
+
+        // 用 Token 里的真实用户ID，不相信前端传入的 request.UserId
         var (answer, references, costSeconds) = await _chatUseCase.ChatAsync(
-            request.UserId,
+            userId,
             request.Question,
             cancellationToken);
 

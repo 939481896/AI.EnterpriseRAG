@@ -1,35 +1,49 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace AI.EnterpriseRAG.Application.Dtos;
 
+
+/// <summary>
+/// 登录请求
+/// </summary>
 public class LoginRequest
 {
-    public string Account { get; set; } = default!;
-    public string Password { get; set; } = default!;
-    public string TenantId { get; set; } = default!; // REQUIRED for multi-tenancy
+    [Required(ErrorMessage = "账号不能为空")]
+    public string Account { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "密码不能为空")]
+    public string Password { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "租户ID不能为空")]
+    public string TenantId { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// 登录响应
+/// </summary>
 public class LoginResponse
 {
-    public string AccessToken { get; set; } = default!;
-    public string RefreshToken { get; set; } = default!;
-    public long ExpiresIn { get; set; }
-
-    public string UserName { get; set; } = default!;
-    public List<string> Permissions { get; set; } = new();
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+    public long ExpiresIn { get; set; } // 30分钟 = 1800
+    public string UserName { get; set; } = string.Empty;
+    public List<string> Permissions { get; set; } = [];
 }
 
+/// <summary>
+/// 刷新令牌请求（【修复】只保留一个 RefreshToken，和接口匹配）
+/// </summary>
 public class RefreshTokenRequest
 {
-    public string Token { get; set; } = string.Empty;
-    public string RefreshToken { get; set; }
+    [Required(ErrorMessage = "刷新令牌不能为空")]
+    public string RefreshToken { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// 刷新令牌响应
+/// </summary>
 public class TokenResponse
 {
-    public string AccessToken { get; set; }
-    public string RefreshToken { get; set; }
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
 }

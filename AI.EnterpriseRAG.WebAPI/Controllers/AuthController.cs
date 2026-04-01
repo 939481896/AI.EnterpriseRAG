@@ -1,11 +1,12 @@
 ﻿using AI.EnterpriseRAG.Application.Authorization;
-using AI.EnterpriseRAG.Application.Dtos; // Ensure your Dtos are mapped
+using AI.EnterpriseRAG.Application.Dtos;
+using AI.EnterpriseRAG.Core.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
 [ApiController]
-[Route("api/[controller]")] // Standard: api/auth
+[Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly AuthService _authService;
@@ -16,24 +17,23 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult> Login([FromBody] LoginRequest request)
     {
-        // In a real app, you'd add: if (!ModelState.IsValid) return BadRequest();
-        var result = await _authService.LoginAsync(request);
-        return Ok(result);
+        // 参数验证
+        if (!ModelState.IsValid)
+            return BadRequest(Result.Fail("参数验证失败"));
+
+        var response = await _authService.LoginAsync(request);
+        return Ok(Result<LoginResponse>.SuccessResult(response));
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+    public async Task<ActionResult<Result<TokenResponse>>> Refresh([FromBody] RefreshTokenRequest request)
     {
-        try
-        {
-            var result = await _authService.RefreshAccessTokenAsync(request.RefreshToken);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized(new { message = "Session expired. Please login again." });
-        }
+        if (!ModelState.IsValid)
+            return BadRequest(Result.Fail("刷新令牌不能为空"));
+
+        var response = await _authService.RefreshAccessTokenAsync(request.RefreshToken);
+        return Ok(Result<TokenResponse>.SuccessResult(response));
     }
 }
