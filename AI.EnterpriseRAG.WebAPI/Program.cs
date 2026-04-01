@@ -41,7 +41,7 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("System", LogEventLevel.Warning)
 
     // 控制台输出
-    .WriteTo.Console()
+    .WriteTo.Console(outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
 
     // 文件输出（绝对路径 + 正确格式）
     .WriteTo.File(
@@ -50,7 +50,9 @@ Log.Logger = new LoggerConfiguration()
         fileSizeLimitBytes: 1024 * 1024 * 100,
         rollOnFileSizeLimit: true,
         retainedFileCountLimit: 30,
-        encoding: System.Text.Encoding.UTF8
+        encoding: System.Text.Encoding.UTF8,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
+
     )
 
     .CreateLogger();

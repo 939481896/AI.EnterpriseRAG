@@ -192,7 +192,8 @@ public class DocumentUseCase : IDocumentUseCase
 
                     // 存入向量库
                     await vectorStore.InsertAsync(chunk, vector);
-
+                    chunk.Embedding = "text-embedding-v1";
+                    chunk.KeyWords = "";
                     // 保存分块记录（使用新Scope的repo）
                     await docRepo.AddChunkAsync(chunk);
 

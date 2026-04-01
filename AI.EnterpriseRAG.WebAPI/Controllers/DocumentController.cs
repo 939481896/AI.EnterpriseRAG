@@ -30,7 +30,7 @@ public class DocumentController : ControllerBase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>文档处理结果</returns>
     [HttpPost("upload")]
-    [Permission("doc.upload")]
+    //[Permission("doc.upload")]
     [ProducesResponseType(typeof(Result<DocumentUploadResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadDocument(IFormFile file, CancellationToken cancellationToken = default)

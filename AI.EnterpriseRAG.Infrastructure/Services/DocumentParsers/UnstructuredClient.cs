@@ -22,7 +22,7 @@ namespace AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers
             _options = vectorStoreOptions.Value.Unstructured;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-API-Key", _options.ApiKey);
-            _httpClient.Timeout = TimeSpan.FromMinutes(5);
+            _httpClient.Timeout = TimeSpan.FromMinutes(8);
         }
 
         public async Task<List<UnstructuredChunk>> ParseDocumentAsync(
