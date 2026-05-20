@@ -113,7 +113,7 @@ public class QdrantVectorStore : IVectorStore
                 throw new BusinessException((int)resp.StatusCode, $"插入失败：{err}");
             }
 
-            chunk.VectorJson = JsonSerializer.Serialize(vector, AotJsonContext.Default.SingleArray);
+            // 向量已存储在Qdrant，无需DB存储
         }
         catch (BusinessException) { throw; }
         catch (Exception ex)
@@ -187,14 +187,15 @@ public class QdrantVectorStore : IVectorStore
             foreach (var item in result.result)
             {
                 var p = item.payload;
-                list.Add(new DocumentChunk
+                var chunk = new DocumentChunk
                 {
                     Id = Guid.Parse(p["chunk_id"].ToString()!),
                     DocumentId = Guid.Parse(p["document_id"].ToString()!),
                     Index = int.Parse(p["chunk_index"].ToString()!),
                     Content = p.TryGetValue("content", out var c) ? c.ToString() : "",
-                    Similarity = (float)item.score
-                });
+                    Similarity = (float)item.score // 临时字段，不持久化
+                };
+                list.Add(chunk);
             }
             return list;
         }

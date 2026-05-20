@@ -6,6 +6,7 @@ using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
+using AI.EnterpriseRAG.Domain.Interfaces.Agent;
 using AI.EnterpriseRAG.Infrastructure.Authorization;
 using AI.EnterpriseRAG.Infrastructure.Configurations;
 using AI.EnterpriseRAG.Infrastructure.Middleware;
@@ -16,6 +17,9 @@ using AI.EnterpriseRAG.Infrastructure.Services;
 using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
 using AI.EnterpriseRAG.Infrastructure.Services.Llm;
 using AI.EnterpriseRAG.Infrastructure.Services.VectorStores;
+using AI.EnterpriseRAG.Infrastructure.Services.Agent;
+using AI.EnterpriseRAG.Infrastructure.Services.Agent.Tools;
+using AI.EnterpriseRAG.WebAPI;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -187,6 +191,19 @@ builder.Services.AddScoped<AuthService>();
 // 权限仓储
 builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 builder.Services.AddScoped<IRerankService,BgeRerankService>();
+
+// ========== 5. Agent智能体服务注册 ==========
+builder.Services.AddSingleton<IToolRegistry, ToolRegistry>();
+builder.Services.AddScoped<IIntentRecognitionService, IntentRecognitionService>();
+builder.Services.AddScoped<IAgentOrchestrator, ReactAgentOrchestrator>();
+
+// 注册Agent工具
+builder.Services.AddScoped<RagSearchTool>();
+builder.Services.AddScoped<DataCollectionTool>();
+builder.Services.AddScoped<LogAnalysisTool>();
+
+// 工具注册初始化（启动时自动注册）
+builder.Services.AddHostedService<ToolRegistrationService>();
 
 // ========== 6. 用例注册 ==========
 builder.Services.AddScoped<IDocumentUseCase, DocumentUseCase>();

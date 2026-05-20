@@ -1,7 +1,7 @@
 ﻿namespace AI.EnterpriseRAG.Domain.Entities;
 
 /// <summary>
-/// 文档分块实体
+/// 文档分块实体（持久化模型 - 仅存储核心字段）
 /// </summary>
 public class DocumentChunk
 {
@@ -28,19 +28,7 @@ public class DocumentChunk
     public int TokenCount { get; set; }
 
     /// <summary>
-    /// 向量数据（JSON存储）
-    /// </summary>
-    public string VectorJson { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 关联文档
-    /// </summary>
-    public virtual Document Document { get; set; } = null!;
-
-    public float Similarity { get; set; } // 检索相似度（VectorStore返回时赋值）
-
-    /// <summary>
-    /// 分块唯一标识
+    /// 分块唯一标识（用于向量库关联）
     /// </summary>
     public string ChunkId { get; set; } = string.Empty;
 
@@ -49,24 +37,33 @@ public class DocumentChunk
     /// </summary>
     public string SectionTitle { get; set; } = string.Empty;
 
-
-    /// <summary>
-    /// 源文件名
-    /// </summary>
-    public string FileName { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 源文件类型（pdf/txt/docx）
-    /// </summary>
-    public string FileType { get; set; } = string.Empty;
-
     /// <summary>
     /// 章节层级
     /// </summary>
     public int SectionLevel { get; set; }
 
-    public string KeyWords { get; set; }
+    /// <summary>
+    /// 创建时间（用于过期删除）
+    /// </summary>
+    public DateTime CreateTime { get; set; } = DateTime.UtcNow;
 
-    public string Embedding { get; set; }
+    /// <summary>
+    /// 关联文档（导航属性）
+    /// </summary>
+    public virtual Document Document { get; set; } = null!;
 
+    // ==========================================
+    // 非持久化字段（仅用于查询和传输）
+    // ==========================================
+
+    /// <summary>
+    /// 相似度得分（向量检索时临时赋值，不持久化到DB）
+    /// 使用 [NotMapped] 标记或在DbContext中忽略
+    /// </summary>
+    public float Similarity { get; set; }
+
+    // 移除冗余字段说明：
+    // - VectorJson/Embedding: 向量数据已存储在Qdrant，无需DB重复存储
+    // - FileName/FileType: 通过Document导航属性获取
+    // - KeyWords: 未使用，待需求明确后再添加
 }

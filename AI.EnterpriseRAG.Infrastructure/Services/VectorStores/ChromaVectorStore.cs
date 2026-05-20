@@ -134,7 +134,7 @@ public class ChromaVectorStore : IVectorStore
                 throw new BusinessException((int)response.StatusCode, $"向量插入失败：{response.StatusCode} - {errorMsg}");
             }
 
-            chunk.VectorJson = JsonSerializer.Serialize(vector, AotJsonContext.Default.SingleArray);
+            // 向量已存储在Chroma，无需DB存储
         }
         catch (BusinessException)
         {

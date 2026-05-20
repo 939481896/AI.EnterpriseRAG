@@ -60,9 +60,8 @@ public class DocumentChunkingService
                     ChunkId = $"chunk-{fileName}-{++chunkId}",
                     SectionTitle = section.Title,
                     Content = subChunk.Trim(),
-                    FileName = fileName,
-                    FileType = fileType,
                     SectionLevel = section.Level
+                    // FileName和FileType已移除，通过Document导航属性获取
                 });
             }
         }

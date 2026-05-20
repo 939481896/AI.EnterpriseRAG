@@ -20,6 +20,10 @@ public class AppEnterpriseAiContext : DbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    // Agent智能体相关实体
+    public DbSet<AgentSession> AgentSessions => Set<AgentSession>();
+    public DbSet<AgentStep> AgentSteps => Set<AgentStep>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.Properties<DocumentStatus>().HaveConversion<int>();
@@ -57,12 +61,19 @@ public class AppEnterpriseAiContext : DbContext
             entity.ToTable("document_chunks");
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Content).IsRequired();
-            // In a real RAG system, consider if VectorJson should be a specific DB type (like vector in pgvector)
-            entity.Property(c => c.VectorJson).IsRequired();
+            entity.Property(c => c.ChunkId).HasMaxLength(200);
+            entity.Property(c => c.SectionTitle).HasMaxLength(500);
+
             entity.HasOne(c => c.Document)
                   .WithMany(d => d.Chunks)
                   .HasForeignKey(c => c.DocumentId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(c => c.ChunkId);
+            entity.HasIndex(c => c.DocumentId);
+
+            // 忽略非持久化字段
+            entity.Ignore(c => c.Similarity);
         });
 
         modelBuilder.Entity<ChatConversation>(entity =>
@@ -73,7 +84,43 @@ public class AppEnterpriseAiContext : DbContext
             entity.Property(c => c.Question).IsRequired();
             entity.Property(c => c.Answer).IsRequired();
             entity.Property(c => c.ReferenceContexts).IsRequired();
+        });
 
+        // Agent智能体实体配置
+        modelBuilder.Entity<AgentSession>(entity =>
+        {
+            entity.ToTable("agent_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.UserId).IsRequired().HasMaxLength(100);
+            entity.Property(s => s.TenantId).IsRequired().HasMaxLength(100);
+            entity.Property(s => s.UserIntent).IsRequired();
+            entity.Property(s => s.IntentType).HasMaxLength(50);
+            entity.Property(s => s.Status).HasConversion<int>();
+
+            entity.HasMany(s => s.Steps)
+                  .WithOne(st => st.Session)
+                  .HasForeignKey(st => st.SessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.TenantId);
+            entity.HasIndex(s => s.StartTime);
+        });
+
+        modelBuilder.Entity<AgentStep>(entity =>
+        {
+            entity.ToTable("agent_steps");
+            entity.HasKey(st => st.Id);
+            entity.Property(st => st.StepType).IsRequired().HasMaxLength(50);
+            entity.Property(st => st.ToolName).HasMaxLength(100);
+
+            entity.HasOne(st => st.Session)
+                  .WithMany(s => s.Steps)
+                  .HasForeignKey(st => st.SessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(st => st.SessionId);
+            entity.HasIndex(st => st.StepIndex);
         });
     }
 
