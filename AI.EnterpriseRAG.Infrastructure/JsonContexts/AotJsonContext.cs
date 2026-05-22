@@ -13,6 +13,7 @@ namespace AI.EnterpriseRAG.Infrastructure;
 [JsonSerializable(typeof(QdrantUpsertPointsRequest))]
 [JsonSerializable(typeof(QdrantSearchPointsRequest))]
 [JsonSerializable(typeof(QdrantSearchResponse))]
+[JsonSerializable(typeof(QdrantQueryResponse))]  // ← 新增
 [JsonSerializable(typeof(QdrantDeletePointsRequest))]
 
 [JsonSerializable(typeof(ChromaCreateCollectionRequest))]

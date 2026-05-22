@@ -6,7 +6,8 @@ using AI.EnterpriseRAG.Domain.Enums;
 using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
-using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers; // 新增：引入分块服务
+using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
+using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Document = AI.EnterpriseRAG.Domain.Entities.Document;
@@ -14,7 +15,7 @@ using Document = AI.EnterpriseRAG.Domain.Entities.Document;
 namespace AI.EnterpriseRAG.Application.UseCases;
 
 /// <summary>
-/// 文档用例实现（企业级业务编排）- 适配新分块逻辑
+/// 文档用例实现（企业级业务编排）- 适配新分块逻辑 + 大文档优化
 /// </summary>
 public class DocumentUseCase : IDocumentUseCase
 {
@@ -22,7 +23,8 @@ public class DocumentUseCase : IDocumentUseCase
     private readonly IEnumerable<IDocumentParser> _documentParsers;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DocumentUseCase> _logger;
-    private readonly DocumentChunkingService _chunkingService; // 新增：分块服务
+    private readonly DocumentChunkingService _chunkingService;
+    private readonly DocumentProcessingThrottler _throttler; // 新增：并发控制
 
     // 企业级文件存储路径
     private readonly string _storagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Uploads");
@@ -31,13 +33,15 @@ public class DocumentUseCase : IDocumentUseCase
         IDocumentRepository documentRepository,
         IEnumerable<IDocumentParser> documentParsers,
         IServiceProvider serviceProvider,
-        ILogger<DocumentUseCase> logger)
+        ILogger<DocumentUseCase> logger,
+        DocumentProcessingThrottler throttler) // 新增：注入并发控制
     {
         _documentRepository = documentRepository;
         _documentParsers = documentParsers;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _chunkingService = new DocumentChunkingService(); // 初始化分块服务
+        _chunkingService = new DocumentChunkingService();
+        _throttler = throttler; // 新增
 
         if (!Directory.Exists(_storagePath))
             Directory.CreateDirectory(_storagePath);
@@ -68,7 +72,14 @@ public class DocumentUseCase : IDocumentUseCase
         throw new NotImplementedException();
     }
 
-    public async Task<Guid> UploadAndProcessDocumentAsync(string fileName, string fileType, long fileSize, Stream stream, CancellationToken cancellationToken = default)
+    public async Task<Guid> UploadAndProcessDocumentAsync(
+        string fileName, 
+        string fileType, 
+        long fileSize, 
+        Stream stream, 
+        string uploadedBy,      // 🆕 上传者
+        string? tenantId = null, // 🆕 租户ID（可选）
+        CancellationToken cancellationToken = default)
     {
         // 1. 企业级参数校验
         if (string.IsNullOrEmpty(fileName))
@@ -77,6 +88,9 @@ public class DocumentUseCase : IDocumentUseCase
         if (string.IsNullOrEmpty(fileType))
             throw new BusinessException("文件类型不能为空");
 
+        if (string.IsNullOrEmpty(uploadedBy))
+            throw new BusinessException("上传者不能为空");
+
         fileType = fileType.TrimStart('.').ToLower();
 
         // 2. 检查支持的解析器
@@ -84,13 +98,16 @@ public class DocumentUseCase : IDocumentUseCase
         if (parser == null)
             throw new BusinessException($"不支持的文件类型：{fileType}，仅支持pdf/txt");
 
-        // 3. 创建文档实体
+        // 3. 创建文档实体（包含权限信息）
         var document = new Document
         {
             Name = fileName,
             FileType = fileType,
             FileSize = fileSize,
-            Status = DocumentStatus.Parsing
+            Status = DocumentStatus.Parsing,
+            UploadedBy = uploadedBy,        // 🆕 记录上传者
+            TenantId = tenantId,            // 🆕 记录租户ID
+            IsPublic = false                // 🆕 默认私有
         };
 
         // 4. 保存文件到本地
@@ -110,9 +127,11 @@ public class DocumentUseCase : IDocumentUseCase
         // 5. 保存文档记录
         await _documentRepository.AddAsync(document);
 
-        // 6. 异步处理文档（手动创建独立Scope）
+        // 6. 异步处理文档（带并发控制 + 独立Scope）
         _ = Task.Run(async () =>
         {
+            // 6.0 获取处理槽位（阻塞直到有空闲槽位）
+            using var slot = await _throttler.AcquireAsync(document.Id);
             using var scope = _serviceProvider.CreateScope();
             try
             {
@@ -120,29 +139,48 @@ public class DocumentUseCase : IDocumentUseCase
                 var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
                 var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
 
-                // 6.1 解析文档
-                /* 自定义解析
+                // ========== 核心：混合方案（Unstructured解析 + 自定义分块）==========
+                // 6.1 使用Unstructured解析文档（支持多格式：PDF/Word/Excel/PPT...）
                 _logger.LogInformation("开始解析文档：{DocumentId}", document.Id);
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-                var rawContent = await parser.ParseAsync(fileStream); // 原始文本（含页眉页脚）
-                
-               
-                // ========== 核心：企业级分块流程 ==========
-                // 6.2.1 清洗文本（去页眉/页脚/版权/页码）
+                var unstructuredClient = scope.ServiceProvider.GetRequiredService<UnstructuredClient>();
+                var unstructuredChunks = await unstructuredClient.ParseDocumentAsync(fileStream, document.Name);
+
+                // 6.2 优化：使用StringBuilder流式合并（避免内存峰值）
+                var contentBuilder = new System.Text.StringBuilder(unstructuredChunks.Count * 800); // 预分配容量
+                foreach (var chunk in unstructuredChunks)
+                {
+                    if (!string.IsNullOrWhiteSpace(chunk.Content))
+                    {
+                        contentBuilder.Append(chunk.Content);
+                        contentBuilder.Append("\n\n");
+                    }
+                }
+                var rawContent = contentBuilder.ToString();
+                _logger.LogInformation("文档解析完成，原始内容长度：{Length}字符", rawContent.Length);
+
+                // 6.3 清洗文本（去页眉/页脚/版权/页码）
                 var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
 
-                // 6.2.2 判断是否启用单词级Token计数
+                // 优化：大文档提前释放内存
+                contentBuilder.Clear();
+                contentBuilder = null;
+                rawContent = null;
+                GC.Collect(0, GCCollectionMode.Optimized);
+
+                // 6.4 判断是否启用单词级Token计数
                 bool useWordBasedToken = IsEnglishContent(cleanContent);
 
-                // 6.2.3 生成结构化语义分块（最终调用SplitIntoChunks）
+                // 6.5 使用自定义分块重新分割（精确控制chunk大小）
                 var semanticChunks = _chunkingService.CreateSemanticChunks(
                     cleanText: cleanContent,
                     fileName: fileName,
                     fileType: fileType,
+                    chunkSize: 250,        // ✅ 250字符 ≈ 125 tokens（适合语义检索）
+                    overlapSize: 50,       // ✅ 20%重叠窗口（避免边界信息丢失）
                     useWordBasedToken: useWordBasedToken);
 
-
-                // 6.2.4 转换为你的DocumentChunk实体
+                // 6.6 转换为DocumentChunk实体（保留元数据）
                 var chunks = semanticChunks.Select((sc, index) => new DocumentChunk
                 {
                     DocumentId = document.Id,
@@ -151,53 +189,72 @@ public class DocumentUseCase : IDocumentUseCase
                     TokenCount = useWordBasedToken
                         ? TokenCounter.EstimateTokenCount(sc.Content, true)
                         : TokenCounter.EstimateTokenCount(sc.Content),
-                    // SectionTitle = sc.SectionTitle
+                    SectionTitle = sc.SectionTitle,  // ✅ 保留章节标题
+                    SectionLevel = sc.SectionLevel   // ✅ 保留标题层级
                 }).ToList();
-                */
-                // 6.1 调用 Unstructured 智能解析
-                using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-                var unstructuredClient = scope.ServiceProvider.GetRequiredService<UnstructuredClient>();
-                var rawContent = await unstructuredClient.ParseDocumentAsync(fileStream, document.Name);
 
-                // 6.2 直接转换成你的 DocumentChunk
-                var chunks  = rawContent.Select((chunk, index) => new DocumentChunk
-                {
-                    DocumentId = document.Id,
-                    Content = chunk.Content,
-                    Index = index,
-                    TokenCount = TokenCounter.EstimateTokenCount(chunk.Content),
-                    // 额外信息你也可以存
-                    // PageNumber = chunk.page_number,
-                    SectionTitle = chunk.Title
-                }).ToList();
+                /* 
+                🔹 混合方案说明：
+                1. Unstructured负责文档解析（支持PDF、Word、Excel、PPT等多格式）
+                2. 合并所有Unstructured返回的chunk为完整文本
+                3. 使用DocumentChunkingService重新分块（精确控制250字符）
+                4. 优势：保留多格式支持 + 精确控制Chunk大小
+                */
                 _logger.LogInformation("文档{DocumentId}解析完成，分块数：{ChunkCount}", document.Id, chunks.Count);
 
                 // 6.3 初始化向量库
                 await vectorStore.InitAsync();
 
-                // 6.4 逐块向量化并入库
-                for (int i = 0; i < chunks.Count; i++)
+                // 6.4 优化：批量向量化并入库（提升性能）
+                var batchSize = 10; // 每批处理10个chunk
+                var startTime = DateTime.Now;
+                var processedCount = 0;
+
+                for (int i = 0; i < chunks.Count; i += batchSize)
                 {
-                    var chunk = chunks[i];
-                    if (string.IsNullOrWhiteSpace(chunk.Content))
+                    var batch = chunks.Skip(i).Take(batchSize).ToList();
+                    var validBatch = batch.Where(c => !string.IsNullOrWhiteSpace(c.Content)).ToList();
+
+                    if (!validBatch.Any())
                         continue;
 
-                    // 生成向量（使用新Scope的llmService）
-                    var vector = await llmService.EmbeddingAsync(chunk.Content);
-                    if (vector == null || vector.Length == 0)
+                    // 批量生成向量（并发）
+                    var vectorTasks = validBatch.Select(c => llmService.EmbeddingAsync(c.Content)).ToArray();
+                    var vectors = await Task.WhenAll(vectorTasks);
+
+                    // 批量存储
+                    for (int j = 0; j < validBatch.Count; j++)
                     {
-                        _logger.LogWarning("文档{DocumentId}分块{Index}向量生成失败", document.Id, i);
-                        continue;
+                        var chunk = validBatch[j];
+                        var vector = vectors[j];
+
+                        if (vector == null || vector.Length == 0)
+                        {
+                            _logger.LogWarning("文档{DocumentId}分块{Index}向量生成失败", document.Id, i + j);
+                            continue;
+                        }
+
+                        // 存入向量库
+                        await vectorStore.InsertAsync(chunk, vector);
+
+                        // 保存分块记录
+                        await docRepo.AddChunkAsync(chunk);
+
+                        processedCount++;
                     }
 
-                    // 存入向量库
-                    await vectorStore.InsertAsync(chunk, vector);
+                    _logger.LogInformation("文档{DocumentId}处理进度：{Processed}/{Total} ({Percent:F1}%)",
+                        document.Id, processedCount, chunks.Count, (double)processedCount / chunks.Count * 100);
 
-                    // 保存分块记录（使用新Scope的repo）
-                    await docRepo.AddChunkAsync(chunk);
-
-                    _logger.LogInformation("文档{DocumentId}分块{Index}处理完成", document.Id, i);
+                    // 优化：每批处理后强制GC（避免内存累积）
+                    if (i % (batchSize * 5) == 0)
+                    {
+                        GC.Collect(1, GCCollectionMode.Optimized);
+                    }
                 }
+
+                var elapsed = DateTime.Now - startTime;
+                _logger.LogInformation("文档{DocumentId}向量化完成，耗时：{Elapsed}秒", document.Id, elapsed.TotalSeconds);
 
                 // 6.5 更新文档状态
                 document.Status = DocumentStatus.Vectorized;

@@ -50,6 +50,16 @@ public class AppEnterpriseAiContext : DbContext
             entity.Property(d => d.StoragePath).IsRequired().HasMaxLength(1000);
             entity.Property(d => d.Status).HasConversion<int>();
 
+            // 🆕 权限控制字段配置
+            entity.Property(d => d.UploadedBy).IsRequired().HasMaxLength(100);
+            entity.Property(d => d.TenantId).HasMaxLength(50);
+            entity.Property(d => d.IsPublic).IsRequired().HasDefaultValue(false);
+
+            // 🆕 权限控制索引（提升查询性能）
+            entity.HasIndex(d => d.UploadedBy);
+            entity.HasIndex(d => d.TenantId);
+            entity.HasIndex(d => new { d.TenantId, d.Status }); // 组合索引
+
             entity.HasMany(d => d.Chunks)
                   .WithOne(c => c.Document)
                   .HasForeignKey(c => c.DocumentId)

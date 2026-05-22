@@ -24,7 +24,7 @@ public class ToolRegistrationService : IHostedService
         using var scope = _serviceProvider.CreateScope();
         var registry = scope.ServiceProvider.GetRequiredService<IToolRegistry>();
 
-        // 注册所有工具
+        // 注册RAG和系统工具
         var ragSearchTool = scope.ServiceProvider.GetRequiredService<RagSearchTool>();
         var dataCollectionTool = scope.ServiceProvider.GetRequiredService<DataCollectionTool>();
         var logAnalysisTool = scope.ServiceProvider.GetRequiredService<LogAnalysisTool>();
@@ -33,7 +33,25 @@ public class ToolRegistrationService : IHostedService
         registry.RegisterTool(dataCollectionTool);
         registry.RegisterTool(logAnalysisTool);
 
-        _logger.LogInformation("已注册 {Count} 个Agent工具", registry.GetAllTools().Count());
+        // 注册新增的企业级工具
+        var sqlQueryTool = scope.ServiceProvider.GetRequiredService<SqlQueryTool>();
+        var emailTicketTool = scope.ServiceProvider.GetRequiredService<EmailTicketTool>();
+        var serverMonitorTool = scope.ServiceProvider.GetRequiredService<ServerMonitorTool>();
+
+        registry.RegisterTool(sqlQueryTool);
+        registry.RegisterTool(emailTicketTool);
+        registry.RegisterTool(serverMonitorTool);
+
+        _logger.LogInformation("✅ 已注册 {Count} 个Agent工具", registry.GetAllTools().Count());
+
+        // 打印已注册的工具
+        foreach (var tool in registry.GetAllTools())
+        {
+            _logger.LogInformation("  - {Name} ({Category}): {Description}", 
+                tool.Name, 
+                tool.Category, 
+                tool.Description.Split('\n')[0]);
+        }
 
         return Task.CompletedTask;
     }

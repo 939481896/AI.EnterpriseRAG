@@ -4,6 +4,7 @@ using AI.EnterpriseRAG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AI.EnterpriseRAG.Infrastructure.Migrations
 {
     [DbContext(typeof(AppEnterpriseAiContext))]
-    partial class AppEnterpriseAiContextModelSnapshot : ModelSnapshot
+    [Migration("20260522011718_AddCreateTimeToDocumentChunk")]
+    partial class AddCreateTimeToDocumentChunk
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -195,11 +198,6 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<bool>("IsPublic")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -213,22 +211,7 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
 
-                    b.Property<string>("TenantId")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("UploadedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("UploadedBy");
-
-                    b.HasIndex("TenantId", "Status");
 
                     b.ToTable("documents", (string)null);
                 });
@@ -469,9 +452,9 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         {
                             Id = 1L,
                             Account = "admin",
-                            CreateTime = new DateTime(2026, 5, 22, 7, 45, 50, 182, DateTimeKind.Utc).AddTicks(3271),
+                            CreateTime = new DateTime(2026, 5, 22, 1, 17, 18, 212, DateTimeKind.Utc).AddTicks(6091),
                             IsEnabled = true,
-                            PasswordHash = "AQAAAAIAAYagAAAAEJ6HA9iiNt/MVjzefr/Im+/CgIWyEDLkKidlhgKEIZFk11T/V1XLGiHK7ZKVkB4DsA==",
+                            PasswordHash = "AQAAAAIAAYagAAAAEBl9/QYaEUcf8zObNisH21TNjk3NZG1SffbDLFgUFCB3zSyxsNTJj0m3giqpsO1nkg==",
                             TenantId = "default",
                             UserName = "Admin"
                         });
