@@ -111,7 +111,21 @@ public class ChatUseCase : IChatUseCase
             // ==============================================
             // 5. Rerank 重排
             // ==============================================
-            validChunks = await _rerankService.RerankAsync(question, validChunks, take: 3, cancellationToken);
+            try
+            {
+                validChunks = await _rerankService.RerankAsync(question, validChunks, take: 3, cancellationToken);
+                _logger.LogInformation("✅ Rerank完成 | 最终结果数: {Count}", validChunks.Count);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Rerank服务不可用，跳过重排步骤 | 使用前3个结果");
+                validChunks = validChunks.Take(3).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "⚠️ Rerank服务异常，跳过重排步骤");
+                validChunks = validChunks.Take(3).ToList();
+            }
 
             // ==============================================
             // 6. 文本清洗

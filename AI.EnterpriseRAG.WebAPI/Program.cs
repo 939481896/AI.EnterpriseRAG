@@ -218,7 +218,6 @@ builder.Services.AddScoped<AuthService>();
 
 // 权限仓储
 builder.Services.AddScoped<IPermissionService, PermissionRepository>();
-builder.Services.AddScoped<IRerankService,BgeRerankService>();
 
 // 🆕 细粒度权限服务
 builder.Services.AddScoped<IFineGrainedPermissionService, FineGrainedPermissionService>();

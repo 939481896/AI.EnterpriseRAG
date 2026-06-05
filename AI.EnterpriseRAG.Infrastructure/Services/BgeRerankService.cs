@@ -1,6 +1,7 @@
 ﻿using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -11,11 +12,17 @@ namespace AI.EnterpriseRAG.Infrastructure.Services;
 public class BgeRerankService : IRerankService
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<BgeRerankService> _logger;
 
-    public BgeRerankService()
+    // ✅ Constructor accepts HttpClient from DI (HttpClient factory pattern)
+    public BgeRerankService(HttpClient httpClient, ILogger<BgeRerankService> logger)
     {
-        _httpClient = new HttpClient();
+        _httpClient = httpClient;
+        _logger = logger;
+
+        // Configure HttpClient
         _httpClient.BaseAddress = new Uri("http://localhost:8001");
+        _httpClient.Timeout = TimeSpan.FromSeconds(10);
     }
 
     public async Task<List<DocumentChunk>> RerankAsync(
@@ -23,36 +30,47 @@ public class BgeRerankService : IRerankService
     {
         if (chunks.Count <= take) return chunks;
 
-        var request = new RerankRequest
+        try
         {
-            query = query,
-            texts = chunks.Select(x => x.Content).ToList()
-        };
-
-        var ms = new MemoryStream();
-        // AOT
-        await JsonSerializer.SerializeAsync(ms, request, RerankJsonContext.Default.RerankRequest, ct);
-        ms.Position = 0;
-        var content = new StreamContent(ms);
-        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-
-        var resp = await _httpClient.PostAsync("/rerank", content, ct);
-        resp.EnsureSuccessStatusCode();
-
-        using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        // AOT
-        var result = await JsonSerializer.DeserializeAsync(stream, RerankJsonContext.Default.RerankResponse, ct);
-
-        return result!.Results
-            .OrderByDescending(x => x.Score)
-            .Take(take)
-            .Select(x =>
+            var request = new RerankRequest
             {
-                var c = chunks[x.Index];
-                c.Similarity = (float)x.Score;
-                return c;
-            })
-            .ToList();
+                query = query,
+                texts = chunks.Select(x => x.Content).ToList()
+            };
+
+            var ms = new MemoryStream();
+            await JsonSerializer.SerializeAsync(ms, request, RerankJsonContext.Default.RerankRequest, ct);
+            ms.Position = 0;
+            var content = new StreamContent(ms);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
+            var resp = await _httpClient.PostAsync("/rerank", content, ct);
+            resp.EnsureSuccessStatusCode();
+
+            using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            var result = await JsonSerializer.DeserializeAsync(stream, RerankJsonContext.Default.RerankResponse, ct);
+
+            return result!.Results
+                .OrderByDescending(x => x.Score)
+                .Take(take)
+                .Select(x =>
+                {
+                    var c = chunks[x.Index];
+                    c.Similarity = (float)x.Score;
+                    return c;
+                })
+                .ToList();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Rerank服务不可用，使用原始排序的前{Take}个结果", take);
+            return chunks.Take(take).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Rerank服务异常，使用原始排序");
+            return chunks.Take(take).ToList();
+        }
     }
 }
 
