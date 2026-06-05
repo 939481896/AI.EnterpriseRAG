@@ -28,4 +28,15 @@ public interface IDocumentUseCase
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     Task DeleteByCollectionNameAsync(Guid collectionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 重新处理文档（用于恢复失败的任务）
+    /// </summary>
+    /// <param name="documentId">文档ID</param>
+    /// <param name="fileStream">文件流（如果为null则从存储读取）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    Task ReprocessDocumentAsync(
+        Guid documentId, 
+        Stream? fileStream = null, 
+        CancellationToken cancellationToken = default);
 }

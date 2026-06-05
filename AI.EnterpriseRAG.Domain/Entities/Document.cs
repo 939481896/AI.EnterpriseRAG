@@ -61,6 +61,30 @@ public class Document
     /// </summary>
     public bool IsPublic { get; set; } = false;
 
+    // ========== 🆕 重复上传检测字段 ==========
+
+    /// <summary>
+    /// 文件MD5哈希（用于重复检测）
+    /// </summary>
+    public string? FileHash { get; set; }
+
+    /// <summary>
+    /// 最后更新时间
+    /// </summary>
+    public DateTime? UpdateTime { get; set; }
+
+    // ========== 🆕 分类字段 ==========
+
+    /// <summary>
+    /// 文档分类ID（可选）
+    /// </summary>
+    public long? CategoryId { get; set; }
+
+    /// <summary>
+    /// 文档分类（导航属性）
+    /// </summary>
+    public virtual DocumentCategory? Category { get; set; }
+
     /// <summary>
     /// 关联的分块
     /// </summary>

@@ -25,8 +25,8 @@ public class ChatUseCase : IChatUseCase
     private readonly IRerankService _rerankService;
 
     // 缓存向量库CollectionID，避免重复初始化（线程安全）
-    private string _cachedCollectionId;
-    private readonly object _collectionLock = new object();
+    private string? _cachedCollectionId;
+    private readonly SemaphoreSlim _initLock = new SemaphoreSlim(1, 1);
 
     // 从常量类读取核心配置（避免硬编码）
     private readonly float _minSimilarityThreshold = LLMConstants.MIN_SEARCH_SIMILARITY;
@@ -279,34 +279,40 @@ public class ChatUseCase : IChatUseCase
     }
 
     /// <summary>
-    /// 获取或初始化向量库Collection（双重检查锁，避免重复初始化）
+    /// 获取或初始化向量库Collection（正确的异步双重检查锁实现）
+    /// 注意：Program.cs启动时已初始化，此方法主要用于缓存和兜底
     /// </summary>
     private async Task<string> GetOrInitVectorCollection(CancellationToken cancellationToken)
     {
-        // 第一重检查（无锁）
+        // 快速路径：无锁检查（大多数请求直接返回）
         if (!string.IsNullOrEmpty(_cachedCollectionId))
         {
             return _cachedCollectionId;
         }
 
-        // 加锁后第二重检查（线程安全）
-        lock (_collectionLock)
+        // 慢速路径：异步锁保护初始化
+        await _initLock.WaitAsync(cancellationToken);
+        try
         {
+            // 双重检查：持有锁后再次验证
             if (!string.IsNullOrEmpty(_cachedCollectionId))
             {
                 return _cachedCollectionId;
             }
-        }
 
-        // 初始化并缓存
-        var collectionId = await _vectorStore.InitAsync(cancellationToken);
-        lock (_collectionLock)
-        {
+            // 初始化（只有一个线程能到这里）
+            _logger.LogDebug("开始初始化向量库Collection...");
+            var collectionId = await _vectorStore.InitAsync(cancellationToken);
+
             _cachedCollectionId = collectionId;
-        }
+            _logger.LogInformation("✅ 向量库Collection初始化完成：{CollectionId}", collectionId);
 
-        _logger.LogInformation("向量库Collection初始化完成，ID：{CollectionId}", collectionId);
-        return collectionId;
+            return collectionId;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     /// <summary>

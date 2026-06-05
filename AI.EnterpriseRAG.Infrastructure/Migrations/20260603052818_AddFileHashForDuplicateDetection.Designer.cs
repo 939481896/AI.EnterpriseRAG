@@ -4,6 +4,7 @@ using AI.EnterpriseRAG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AI.EnterpriseRAG.Infrastructure.Migrations
 {
     [DbContext(typeof(AppEnterpriseAiContext))]
-    partial class AppEnterpriseAiContextModelSnapshot : ModelSnapshot
+    [Migration("20260603052818_AddFileHashForDuplicateDetection")]
+    partial class AddFileHashForDuplicateDetection
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -181,14 +184,14 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<long?>("CategoryId")
-                        .HasColumnType("BIGINT");
-
                     b.Property<DateTime?>("CompleteTime")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime>("CreateTime")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<long?>("DocumentCategoryId")
+                        .HasColumnType("BIGINT");
 
                     b.Property<string>("FileHash")
                         .HasMaxLength(64)
@@ -234,7 +237,7 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("DocumentCategoryId");
 
                     b.HasIndex("FileHash");
 
@@ -414,57 +417,6 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                             Code = "doc.upload",
                             Name = "文档上传"
                         });
-                });
-
-            modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.PermissionAuditLog", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("BIGINT");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("CreateTime")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid?>("DocumentId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("IP")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int?>("PermissionType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<long?>("TargetUserId")
-                        .HasColumnType("BIGINT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreateTime");
-
-                    b.HasIndex("DocumentId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "CreateTime");
-
-                    b.ToTable("PermissionAuditLog", (string)null);
                 });
 
             modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.RefreshToken", b =>
@@ -656,9 +608,9 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         {
                             Id = 1L,
                             Account = "admin",
-                            CreateTime = new DateTime(2026, 6, 5, 2, 35, 35, 881, DateTimeKind.Utc).AddTicks(7441),
+                            CreateTime = new DateTime(2026, 6, 3, 5, 28, 17, 371, DateTimeKind.Utc).AddTicks(7789),
                             IsEnabled = true,
-                            PasswordHash = "AQAAAAIAAYagAAAAEI5aVO4HZsbpuQuPs5dmXkHQ1dBFSBikXz7ThqmVlLYzYdhIonzTU7NrK+br4aae6A==",
+                            PasswordHash = "AQAAAAIAAYagAAAAEO0KpWVUHO6jKTAr9+ouJTBmxj7bYUFS4T5dzqAqbH9edV4/UuLM2L5tGHLUuY0nDg==",
                             TenantId = "default",
                             UserName = "Admin"
                         });
@@ -684,41 +636,6 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                             UserId = 1L,
                             RoleId = 1L
                         });
-                });
-
-            modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.UserCategoryPermission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<long>("CategoryId")
-                        .HasColumnType("BIGINT");
-
-                    b.Property<DateTime>("GrantedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("GrantedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int>("PermissionType")
-                        .HasColumnType("int");
-
-                    b.Property<long>("UserId")
-                        .HasColumnType("BIGINT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "CategoryId")
-                        .IsUnique();
-
-                    b.ToTable("UserCategoryPermission", (string)null);
                 });
 
             modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.UserDocumentPermission", b =>
@@ -779,12 +696,9 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
 
             modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.Document", b =>
                 {
-                    b.HasOne("AI.EnterpriseRAG.Domain.Entities.DocumentCategory", "Category")
+                    b.HasOne("AI.EnterpriseRAG.Domain.Entities.DocumentCategory", null)
                         .WithMany("Documents")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Category");
+                        .HasForeignKey("DocumentCategoryId");
                 });
 
             modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.DocumentCategory", b =>
@@ -891,25 +805,6 @@ namespace AI.EnterpriseRAG.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AI.EnterpriseRAG.Domain.Entities.UserCategoryPermission", b =>
-                {
-                    b.HasOne("AI.EnterpriseRAG.Domain.Entities.DocumentCategory", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AI.EnterpriseRAG.Domain.Entities.SysUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
 
                     b.Navigation("User");
                 });

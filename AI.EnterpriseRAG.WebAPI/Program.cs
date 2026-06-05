@@ -21,6 +21,7 @@ using AI.EnterpriseRAG.Infrastructure.Services.VectorStores;
 using AI.EnterpriseRAG.Infrastructure.Services.Agent;
 using AI.EnterpriseRAG.Infrastructure.Services.Agent.Tools;
 using AI.EnterpriseRAG.WebAPI;
+using AI.EnterpriseRAG.WebAPI.Middleware; // 🆕 开发环境中间件
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -219,6 +220,9 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 builder.Services.AddScoped<IRerankService,BgeRerankService>();
 
+// 🆕 细粒度权限服务
+builder.Services.AddScoped<IFineGrainedPermissionService, FineGrainedPermissionService>();
+
 // ========== 5. Agent智能体服务注册 ==========
 builder.Services.AddSingleton<IToolRegistry, ToolRegistry>();
 builder.Services.AddScoped<IIntentRecognitionService, IntentRecognitionService>();
@@ -236,6 +240,9 @@ builder.Services.AddScoped<ServerMonitorTool>();
 
 // 工具注册初始化（启动时自动注册）
 builder.Services.AddHostedService<ToolRegistrationService>();
+
+// 🆕 文档恢复服务（启动时自动恢复未完成的文档）
+builder.Services.AddHostedService<DocumentRecoveryService>();
 
 // ========== 6. 用例注册 ==========
 builder.Services.AddScoped<IDocumentUseCase, DocumentUseCase>();
@@ -298,6 +305,12 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // 🆕 开发环境自动认证（调试时自动登录为admin）
+    // 启用后，所有请求都会自动注入admin用户身份，无需token
+    // 如需测试真实JWT验证，注释此行
+    app.UseDevAutoAuth();
+    Log.Information("✅ 开发环境自动认证已启用（自动以admin身份登录）");
 }
 app.UseMiddleware<GlobalLogMiddleware>();
 app.UseMiddleware<PermissionAuditMiddleware>();
@@ -343,6 +356,19 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppEnterpriseAiContext>();
     await db.Database.MigrateAsync();
+
+    // 🆕 初始化Qdrant Collection（启动时确保Collection存在）
+    try 
+    {
+        var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+        await vectorStore.InitAsync();
+        Log.Information("✅ Qdrant Collection 初始化成功");
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "⚠️ Qdrant Collection 初始化失败（Qdrant可能未启动）");
+        // 不阻止应用启动，允许在没有Qdrant的情况下运行（仅影响向量功能）
+    }
 }
 
 try

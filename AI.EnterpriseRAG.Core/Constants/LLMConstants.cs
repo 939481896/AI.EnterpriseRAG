@@ -93,8 +93,9 @@ namespace AI.EnterpriseRAG.Core.Constants
 
         /// <summary>
         /// 向量检索最小相似度阈值（过滤低质量匹配）
+        /// 注意：中文文档建议使用较低阈值（0.2-0.3），英文可用0.5-0.7
         /// </summary>
-        public const float MIN_SEARCH_SIMILARITY = 0.7f;
+        public const float MIN_SEARCH_SIMILARITY = 0.2f;
 
         /// <summary>
         /// 向量维度（根据使用的Embedding模型调整，比如nomic-embed-text是768维）

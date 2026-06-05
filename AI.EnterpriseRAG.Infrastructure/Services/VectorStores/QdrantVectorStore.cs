@@ -289,13 +289,13 @@ public class QdrantVectorStore : IVectorStore
             var result = await JsonSerializer.DeserializeAsync(responseStream, AotJsonContext.Default.QdrantQueryResponse, cancellationToken);
 
             var list = new List<DocumentChunk>();
-            if (result?.points == null) 
+            if (result?.result?.points == null || !result.result.points.Any()) 
             {
                 _logger.LogWarning("⚠️ 检索结果为空 | Collection: {Collection}", collectionName ?? _config.CollectionName);
                 return list;
             }
 
-            foreach (var item in result.points)
+            foreach (var item in result.result.points)
             {
                 var p = item.payload;
                 var chunk = new DocumentChunk
@@ -560,8 +560,13 @@ public class QdrantSearchResponse
     public List<QdrantSearchResult> result { get; set; } = new();
 }
 
-// 🔧 新增：/points/query端点的响应格式
+// 🔧 新增：/points/query端点的响应格式（带result包装）
 public class QdrantQueryResponse
+{
+    public QdrantQueryResult result { get; set; } = new();
+}
+
+public class QdrantQueryResult
 {
     public List<QdrantSearchResult> points { get; set; } = new();
 }

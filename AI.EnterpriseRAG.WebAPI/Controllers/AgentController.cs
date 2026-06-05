@@ -1,17 +1,20 @@
+using AI.EnterpriseRAG.Application.Dtos;
+using AI.EnterpriseRAG.Core.Models;
 using AI.EnterpriseRAG.Domain.Interfaces.Agent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Runtime.CompilerServices;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
 /// <summary>
-/// Agent智能体控制器
+/// Agent controller
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 [Authorize]
 public class AgentController : ControllerBase
 {
@@ -27,22 +30,40 @@ public class AgentController : ControllerBase
     }
 
     /// <summary>
-    /// 执行Agent任务（流式响应SSE）
+    /// Execute Agent task (SSE streaming response)
     /// </summary>
     [HttpPost("execute")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
     public async Task ExecuteAgent(
-        [FromBody] AgentExecuteRequest request,
+        [FromBody] AgentExecuteRequestDto request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        var tenantId = User.FindFirstValue("tenant_id") ?? "default";
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? User.FindFirstValue(ClaimTypes.Name)
+                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("User not authenticated");
+            Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await Response.WriteAsync("event: error\ndata: {\"message\":\"User not authenticated\"}\n\n", cancellationToken);
+            return;
+        }
+
+        var tenantId = User.FindFirstValue("tid")
+                      ?? User.FindFirstValue("tenant_id")
+                      ?? User.FindFirstValue("tenantId")
+                      ?? "default";
 
         _logger.LogInformation(
-            "用户 {UserId} 启动Agent任务: {Input}",
+            "User {UserId} started Agent task: {Input}",
             userId,
             request.Input);
 
-        // 设置SSE响应头
+        // Set SSE response headers
         Response.Headers.Add("Content-Type", "text/event-stream");
         Response.Headers.Add("Cache-Control", "no-cache");
         Response.Headers.Add("Connection", "keep-alive");
@@ -56,37 +77,53 @@ public class AgentController : ControllerBase
                 request.MaxIterations ?? 10,
                 cancellationToken))
             {
-                // 转换为SSE格式
+                // Convert to SSE format
                 var sseData = FormatSseEvent(stepEvent);
                 await Response.WriteAsync(sseData, cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
 
-                // 短暂延迟确保客户端能接收
+                // Short delay to ensure client receives data
                 await Task.Delay(50, cancellationToken);
             }
 
-            // 发送结束标记
+            // Send completion marker
             await Response.WriteAsync("event: done\ndata: {\"status\":\"completed\"}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Agent执行异常");
+            _logger.LogError(ex, "Agent execution error");
             var errorData = $"event: error\ndata: {{\"message\":\"{ex.Message}\"}}\n\n";
             await Response.WriteAsync(errorData, cancellationToken);
         }
     }
 
     /// <summary>
-    /// 执行Agent任务（普通JSON响应）
+    /// Execute Agent task (synchronous JSON response)
     /// </summary>
     [HttpPost("execute-sync")]
+    [ProducesResponseType(typeof(Result<AgentExecuteResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> ExecuteAgentSync(
-        [FromBody] AgentExecuteRequest request,
+        [FromBody] AgentExecuteRequestDto request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        var tenantId = User.FindFirstValue("tenant_id") ?? "default";
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? User.FindFirstValue(ClaimTypes.Name)
+                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("User not authenticated");
+            return Unauthorized(Result.Fail("User not authenticated"));
+        }
+
+        var tenantId = User.FindFirstValue("tid")
+                      ?? User.FindFirstValue("tenant_id")
+                      ?? User.FindFirstValue("tenantId")
+                      ?? "default";
 
         var steps = new List<AgentStepEvent>();
         string? finalAnswer = null;
@@ -110,10 +147,10 @@ public class AgentController : ControllerBase
                 }
             }
 
-            return Ok(new AgentExecuteResponse
+            var response = new AgentExecuteResponseDto
             {
                 SessionId = sessionId ?? Guid.Empty,
-                FinalAnswer = finalAnswer ?? "未生成答案",
+                FinalAnswer = finalAnswer ?? "No answer generated",
                 Steps = steps.Select(s => new AgentStepDto
                 {
                     StepIndex = s.StepIndex,
@@ -125,48 +162,63 @@ public class AgentController : ControllerBase
                     Timestamp = s.Timestamp
                 }).ToList(),
                 TotalSteps = steps.Count
-            });
+            };
+
+            return Ok(Result<AgentExecuteResponseDto>.SuccessResult(response, "Agent execution completed"));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Agent执行失败");
-            return StatusCode(500, new { error = ex.Message });
+            _logger.LogError(ex, "Agent execution failed");
+            return StatusCode(500, Result.Fail($"Agent execution failed: {ex.Message}", 500));
         }
     }
 
     /// <summary>
-    /// 获取会话历史
+    /// Get session history
     /// </summary>
     [HttpGet("session/{sessionId}")]
+    [ProducesResponseType(typeof(Result<AgentSessionResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetSession(Guid sessionId, CancellationToken cancellationToken)
     {
-        var session = await _agentOrchestrator.GetSessionAsync(sessionId, cancellationToken);
-
-        if (session == null)
-            return NotFound(new { message = "会话不存在" });
-
-        return Ok(new
+        try
         {
-            session_id = session.Id,
-            user_id = session.UserId,
-            intent = session.UserIntent,
-            intent_type = session.IntentType,
-            status = session.Status.ToString(),
-            final_answer = session.FinalAnswer,
-            start_time = session.StartTime,
-            end_time = session.EndTime,
-            total_cost_seconds = session.TotalCostSeconds,
-            steps = session.Steps.Select(s => new
+            var session = await _agentOrchestrator.GetSessionAsync(sessionId, cancellationToken);
+
+            if (session == null)
+                return NotFound(Result.Fail("Session not found", 404));
+
+            var response = new AgentSessionResponseDto
             {
-                step_index = s.StepIndex,
-                step_type = s.StepType,
-                tool_name = s.ToolName,
-                tool_arguments = s.ToolArguments,
-                tool_result = s.ToolResult,
-                is_success = s.IsSuccess,
-                duration_ms = s.DurationMs
-            }).ToList()
-        });
+                SessionId = session.Id,
+                UserId = session.UserId,
+                Intent = session.UserIntent,
+                IntentType = session.IntentType,
+                Status = session.Status.ToString(),
+                FinalAnswer = session.FinalAnswer,
+                StartTime = session.StartTime,
+                EndTime = session.EndTime,
+                TotalCostSeconds = session.TotalCostSeconds,
+                Steps = session.Steps.Select(s => new AgentSessionStepDto
+                {
+                    StepIndex = s.StepIndex,
+                    StepType = s.StepType,
+                    ToolName = s.ToolName,
+                    ToolArguments = s.ToolArguments,
+                    ToolResult = s.ToolResult,
+                    IsSuccess = s.IsSuccess,
+                    DurationMs = s.DurationMs
+                }).ToList()
+            };
+
+            return Ok(Result<AgentSessionResponseDto>.SuccessResult(response));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve session {SessionId}", sessionId);
+            return StatusCode(500, Result.Fail($"Failed to retrieve session: {ex.Message}", 500));
+        }
     }
 
     private string FormatSseEvent(AgentStepEvent stepEvent)
@@ -191,42 +243,4 @@ public class AgentController : ControllerBase
 
         return sb.ToString();
     }
-}
-
-/// <summary>
-/// Agent执行请求
-/// </summary>
-public class AgentExecuteRequest
-{
-    /// <summary>
-    /// 用户输入
-    /// </summary>
-    public string Input { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 最大迭代次数
-    /// </summary>
-    public int? MaxIterations { get; set; } = 10;
-}
-
-/// <summary>
-/// Agent执行响应
-/// </summary>
-public class AgentExecuteResponse
-{
-    public Guid SessionId { get; set; }
-    public string FinalAnswer { get; set; } = string.Empty;
-    public List<AgentStepDto> Steps { get; set; } = new();
-    public int TotalSteps { get; set; }
-}
-
-public class AgentStepDto
-{
-    public int StepIndex { get; set; }
-    public string EventType { get; set; } = string.Empty;
-    public string? Thought { get; set; }
-    public string? ToolName { get; set; }
-    public Dictionary<string, object>? ToolArguments { get; set; }
-    public string? Observation { get; set; }
-    public DateTime Timestamp { get; set; }
 }

@@ -17,7 +17,7 @@ namespace AI.EnterpriseRAG.Application.UseCases;
 /// <summary>
 /// 文档用例实现（企业级业务编排）- 适配新分块逻辑 + 大文档优化
 /// </summary>
-public class DocumentUseCase : IDocumentUseCase
+public partial class DocumentUseCase : IDocumentUseCase
 {
     private readonly IDocumentRepository _documentRepository;
     private readonly IEnumerable<IDocumentParser> _documentParsers;
@@ -98,19 +98,51 @@ public class DocumentUseCase : IDocumentUseCase
         if (parser == null)
             throw new BusinessException($"不支持的文件类型：{fileType}，仅支持pdf/txt");
 
-        // 3. 创建文档实体（包含权限信息）
+        // 🆕 3. 计算文件哈希（用于重复检测）
+        string fileHash;
+        try
+        {
+            _logger.LogDebug("开始计算文件哈希：{FileName}", fileName);
+            fileHash = await FileHasher.ComputeMD5Async(stream, resetPosition: true);
+            _logger.LogInformation("文件哈希计算完成：{Hash}", fileHash);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "计算文件哈希失败");
+            throw new BusinessException($"计算文件哈希失败：{ex.Message}");
+        }
+
+        // 🆕 4. 检查是否重复上传（同一用户/租户 + 相同哈希）
+        var existingDoc = await _documentRepository.GetByFileHashAsync(
+            fileHash, 
+            uploadedBy, 
+            tenantId, 
+            cancellationToken);
+
+        if (existingDoc != null)
+        {
+            _logger.LogInformation(
+                "检测到重复文件：{FileName}，哈希：{Hash}，已存在文档ID：{ExistingId}",
+                fileName, fileHash, existingDoc.Id);
+
+            // 返回已有文档ID（避免重复处理）
+            return existingDoc.Id;
+        }
+
+        // 5. 创建文档实体（包含权限信息和哈希）
         var document = new Document
         {
             Name = fileName,
             FileType = fileType,
             FileSize = fileSize,
+            FileHash = fileHash,            // 🆕 保存哈希
             Status = DocumentStatus.Parsing,
-            UploadedBy = uploadedBy,        // 🆕 记录上传者
-            TenantId = tenantId,            // 🆕 记录租户ID
-            IsPublic = false                // 🆕 默认私有
+            UploadedBy = uploadedBy,
+            TenantId = tenantId,
+            IsPublic = false
         };
 
-        // 4. 保存文件到本地
+        // 6. 保存文件到本地
         var filePath = Path.Combine(_storagePath, $"{document.Id}.{fileType}");
         try
         {
@@ -124,10 +156,14 @@ public class DocumentUseCase : IDocumentUseCase
             throw new BusinessException("文件保存失败：" + ex.Message);
         }
 
-        // 5. 保存文档记录
+        // 7. 保存文档记录
         await _documentRepository.AddAsync(document);
 
-        // 6. 异步处理文档（带并发控制 + 独立Scope）
+        _logger.LogInformation(
+            "文档创建成功：ID={DocumentId}，名称={Name}，哈希={Hash}",
+            document.Id, fileName, fileHash);
+
+        // 8. 异步处理文档（带并发控制 + 独立Scope）
         _ = Task.Run(async () =>
         {
             // 6.0 获取处理槽位（阻塞直到有空闲槽位）
