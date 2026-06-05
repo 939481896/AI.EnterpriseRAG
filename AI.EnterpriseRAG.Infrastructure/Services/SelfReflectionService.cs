@@ -10,52 +10,36 @@ namespace AI.EnterpriseRAG.Infrastructure.Services;
 /// <summary>
 /// Self-Reflection: Validate and improve answers
 /// Prevents hallucinations and increases trustworthiness
+/// ✅ Now uses centralized PromptService
 /// </summary>
 public class SelfReflectionService : ISelfReflectionService
 {
     private readonly ILlmService _llm;
+    private readonly IPromptService _promptService;
     private readonly ILogger<SelfReflectionService> _logger;
     private readonly SelfReflectionOptions _options;
 
     public SelfReflectionService(
         ILlmService llm,
+        IPromptService promptService,
         ILogger<SelfReflectionService> logger,
         IOptions<SelfReflectionOptions> options)
     {
         _llm = llm;
+        _promptService = promptService;
         _logger = logger;
         _options = options.Value;
     }
-    
+
     public async Task<ReflectionResult> ValidateAnswerAsync(
         string question,
         string answer,
         List<DocumentChunk> sources,
         CancellationToken ct)
     {
-        var prompt = $@"Evaluate this answer for accuracy and source support.
-
-Question: {question}
-
-Generated Answer: {answer}
-
-Source Documents:
-{string.Join("\n\n", sources.Select((s, i) => $"[{i+1}] {s.Content}"))}
-
-Evaluate:
-1. Is the answer supported by the sources? (yes/no/partial)
-2. Are there any contradictions or inconsistencies?
-3. What is the confidence score? (0-100)
-4. If confidence < 70, provide an improved answer.
-
-Respond ONLY with valid JSON:
-{{
-  ""isSupported"": ""yes/no/partial"",
-  ""contradictions"": ""any issues found or 'none'"",
-  ""confidence"": 85,
-  ""reasoning"": ""why this confidence score"",
-  ""improvedAnswer"": ""better answer if needed or null""
-}}";
+        // ✅ Use centralized prompt
+        var sourcesText = string.Join("\n\n", sources.Select((s, i) => $"[{i+1}] {s.Content}"));
+        var prompt = _promptService.GetSelfReflectionPrompt(question, answer, sourcesText);
 
         try
         {

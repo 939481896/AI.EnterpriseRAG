@@ -6,20 +6,24 @@ namespace AI.EnterpriseRAG.Infrastructure.Services;
 /// <summary>
 /// HyDE: Hypothetical Document Embeddings
 /// Improves retrieval accuracy by 20-30%
+/// ✅ Now uses centralized PromptService
 /// </summary>
 public class QueryRewritingService : IQueryRewritingService
 {
     private readonly ILlmService _llm;
+    private readonly IPromptService _promptService;
     private readonly ILogger<QueryRewritingService> _logger;
-    
+
     public QueryRewritingService(
         ILlmService llm,
+        IPromptService promptService,
         ILogger<QueryRewritingService> logger)
     {
         _llm = llm;
+        _promptService = promptService;
         _logger = logger;
     }
-    
+
     /// <summary>
     /// HyDE: Generate hypothetical document that would answer the question
     /// </summary>
@@ -27,20 +31,17 @@ public class QueryRewritingService : IQueryRewritingService
         string query,
         CancellationToken ct)
     {
-        var prompt = $@"Write a detailed, informative passage that would perfectly answer this question:
-
-Question: {query}
-
-Write a comprehensive answer (2-3 paragraphs):";
+        // ✅ Use centralized prompt
+        var prompt = _promptService.GetHydePrompt(query, maxLength: 500);
 
         var hypotheticalDoc = await _llm.ChatAsync(prompt, ct);
-        
+
         _logger.LogDebug("HyDE query rewriting: {Query} → {HypoDoc}", 
             query, hypotheticalDoc.Substring(0, Math.Min(100, hypotheticalDoc.Length)));
-        
+
         return hypotheticalDoc;
     }
-    
+
     /// <summary>
     /// Multi-Query: Generate similar questions for better recall
     /// </summary>
@@ -49,19 +50,16 @@ Write a comprehensive answer (2-3 paragraphs):";
         int count,
         CancellationToken ct)
     {
-        var prompt = $@"Generate {count} different ways to ask this question (keep the same meaning):
-
-Original: {originalQuery}
-
-1.";
+        // ✅ Use centralized prompt
+        var prompt = _promptService.GetMultiQueryPrompt(originalQuery, count);
 
         var response = await _llm.ChatAsync(prompt, ct);
         var queries = ParseQueries(response);
-        
+
         queries.Insert(0, originalQuery); // Include original
-        
+
         _logger.LogDebug("Multi-query expansion: {Count} queries generated", queries.Count);
-        
+
         return queries;
     }
     

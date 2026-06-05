@@ -163,6 +163,7 @@ builder.Services.Configure<HybridSearchOptions>(builder.Configuration.GetSection
 builder.Services.Configure<MemoryOptions>(builder.Configuration.GetSection(MemoryOptions.SectionName));
 builder.Services.Configure<SelfReflectionOptions>(builder.Configuration.GetSection(SelfReflectionOptions.SectionName));
 builder.Services.Configure<CitationOptions>(builder.Configuration.GetSection(CitationOptions.SectionName));
+builder.Services.Configure<PromptOptions>(builder.Configuration.GetSection(PromptOptions.SectionName)); // 🆕 Prompt Configuration
 
 // ========== 2. 数据库配置 ==========
 builder.Services.AddDbContext<AppEnterpriseAiContext>(options =>
@@ -231,6 +232,9 @@ builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 
 // 🆕 细粒度权限服务
 builder.Services.AddScoped<IFineGrainedPermissionService, FineGrainedPermissionService>();
+
+// ========== 🆕 Prompt Management Service ==========
+builder.Services.AddScoped<IPromptService, PromptService>();
 
 // ========== 🚀 V1.0 Advanced RAG Services ==========
 builder.Services.AddScoped<IQueryRewritingService, QueryRewritingService>();
