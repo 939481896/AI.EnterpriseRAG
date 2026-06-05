@@ -36,12 +36,12 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> Ask([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
     {
         // 从 Token 自动获取当前登录用户 ID，禁止前端传入！
-        /*var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
 
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(Result.Fail("用户未登录"));
-        */
+        request.UserId = userId;
         // 用 Token 里的真实用户ID，不相信前端传入的 request.UserId
         var (answer, references, costSeconds) = await _chatUseCase.ChatAsync(
             request.UserId,
@@ -69,12 +69,15 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> AskV1([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
     {
         // 从 Token 自动获取当前登录用户 ID，禁止前端传入！
-        /*var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                    ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        
 
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(Result.Fail("用户未登录"));
-        */
+        request.UserId = userId;
         // 用 Token 里的真实用户ID，不相信前端传入的 request.UserId
         var (answer, references, costSeconds) = await _chatUseCase.ChatV1Async(
             request.UserId,

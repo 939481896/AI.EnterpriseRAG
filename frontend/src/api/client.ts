@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios'
 import { message } from 'antd'
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5243',
   timeout: 60000, // 60 seconds for LLM responses
   headers: {
     'Content-Type': 'application/json',

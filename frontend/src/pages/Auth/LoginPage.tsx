@@ -59,7 +59,16 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </Form.Item>
-
+                  <Form.Item
+                      name="tenantId"
+                      rules={[{ required: true, message: '请输入租户' }]}
+                  >
+             <Input
+                prefix={<UserOutlined />}
+                placeholder="租户"
+                autoComplete="default"
+             />
+          </Form.Item>
           <Form.Item>
             <Button
               type="primary"

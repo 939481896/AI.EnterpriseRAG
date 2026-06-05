@@ -90,6 +90,19 @@ Log.Information("🚀 应用程序启动中...");
 // 将 Serilog 集成到 ASP.NET Core 日志系统
 builder.Host.UseSerilog();
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
+
+
 // 1. JWT 鉴权（统一配置 + 正确解析 Claim）
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -363,7 +376,7 @@ app.Use(async (context, next) =>
 });
 
 app.UseHttpsRedirection();
-
+app.UseCors();  // Before app.UseAuthorization()
 // 顺序必须正确：先认证 → 后授权
 app.UseAuthentication();
 app.UseAuthorization();
