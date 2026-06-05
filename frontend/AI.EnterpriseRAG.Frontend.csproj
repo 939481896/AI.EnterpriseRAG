@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.Build.NoTargets/3.7.0">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- This is a placeholder project to show frontend files in VS Solution Explorer -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Frontend core files -->
+    <None Include="package.json" />
+    <None Include="vite.config.ts" />
+    <None Include="tsconfig.json" />
+    <None Include="index.html" />
+    <None Include="README.md" />
+    <None Include="FRONTEND_COMPLETE.md" />
+    <None Include="setup.ps1" />
+    <None Include=".gitignore" />
+    <None Include=".env.example" />
+
+    <!-- Source files -->
+    <None Include="src\**\*.tsx" />
+    <None Include="src\**\*.ts" />
+    <None Include="src\**\*.css" />
+
+    <!-- Public assets -->
+    <None Include="public\**\*" />
+  </ItemGroup>
+
+  <Target Name="Build">
+    <Message Text="Building frontend with npm..." Importance="high" />
+    <Exec Command="npm install" />
+    <Exec Command="npm run build" />
+  </Target>
+
+  <Target Name="Clean">
+    <Message Text="Cleaning frontend build..." Importance="high" />
+    <RemoveDir Directories="dist;node_modules\.vite" />
+  </Target>
+</Project>

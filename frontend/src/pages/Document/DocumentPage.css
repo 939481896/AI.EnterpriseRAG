@@ -1,0 +1,53 @@
+.document-page {
+  padding: 24px;
+}
+
+.document-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.document-header h3 {
+  margin: 0;
+}
+
+.upload-card {
+  margin-bottom: 24px;
+}
+
+.upload-progress-container {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.upload-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.upload-progress-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .document-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .document-header .ant-space {
+    width: 100%;
+  }
+
+  .document-header .ant-input,
+  .document-header .ant-select {
+    width: 100% !important;
+  }
+}
