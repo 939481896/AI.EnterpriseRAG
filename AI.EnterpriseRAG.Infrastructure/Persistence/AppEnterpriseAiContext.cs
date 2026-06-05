@@ -24,6 +24,10 @@ public class AppEnterpriseAiContext : DbContext
     public DbSet<AgentSession> AgentSessions => Set<AgentSession>();
     public DbSet<AgentStep> AgentSteps => Set<AgentStep>();
 
+    // 🆕 V1.0 Memory System
+    public DbSet<ConversationSession> ConversationSessions => Set<ConversationSession>();
+    public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+
     // 🆕 细粒度权限控制实体
     public DbSet<UserDocumentPermission> UserDocumentPermissions => Set<UserDocumentPermission>();
     public DbSet<RoleDocumentPermission> RoleDocumentPermissions => Set<RoleDocumentPermission>();
@@ -153,6 +157,44 @@ public class AppEnterpriseAiContext : DbContext
 
             entity.HasIndex(st => st.SessionId);
             entity.HasIndex(st => st.StepIndex);
+        });
+
+        // 🆕 V1.0 Memory System Configuration
+        modelBuilder.Entity<ConversationSession>(entity =>
+        {
+            entity.ToTable("conversation_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.UserId).IsRequired().HasMaxLength(100);
+            entity.Property(s => s.Title).IsRequired().HasMaxLength(500);
+            entity.Property(s => s.Metadata).HasMaxLength(4000);
+
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => new { s.UserId, s.IsActive });
+            entity.HasIndex(s => s.LastInteractionAt);
+
+            entity.HasMany(s => s.Messages)
+                  .WithOne(m => m.Session)
+                  .HasForeignKey(m => m.SessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ConversationMessage>(entity =>
+        {
+            entity.ToTable("conversation_messages");
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.UserId).IsRequired().HasMaxLength(100);
+            entity.Property(m => m.Role).IsRequired().HasMaxLength(20);
+            entity.Property(m => m.Content).IsRequired();
+            entity.Property(m => m.ReferenceChunks).HasMaxLength(4000);
+
+            entity.HasIndex(m => m.SessionId);
+            entity.HasIndex(m => new { m.SessionId, m.SequenceNumber });
+            entity.HasIndex(m => m.CreatedAt);
+
+            entity.HasOne(m => m.Session)
+                  .WithMany(s => s.Messages)
+                  .HasForeignKey(m => m.SessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

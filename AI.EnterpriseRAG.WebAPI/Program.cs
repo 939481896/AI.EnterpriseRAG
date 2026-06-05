@@ -1,6 +1,7 @@
 ﻿using AI.EnterpriseRAG.Application.Authorization;
 using AI.EnterpriseRAG.Application.UseCases;
 using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
+using AI.EnterpriseRAG.Core.Configuration; // 🆕 V1.0 Configuration
 using AI.EnterpriseRAG.Core.Exceptions;
 using AI.EnterpriseRAG.Core.Models;
 using AI.EnterpriseRAG.Domain.Entities;
@@ -154,6 +155,15 @@ builder.Services.AddScoped<IPasswordHasher<SysUser>, PasswordHasher<SysUser>>();
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("LlmOptions"));
 builder.Services.Configure<VectorStoreOptions>(builder.Configuration.GetSection("VectorStoreOptions"));
 
+// 🆕 V1.0 RAG Configuration
+builder.Services.Configure<RagOptions>(builder.Configuration.GetSection(RagOptions.SectionName));
+builder.Services.Configure<HydeOptions>(builder.Configuration.GetSection(HydeOptions.SectionName));
+builder.Services.Configure<MultiQueryOptions>(builder.Configuration.GetSection(MultiQueryOptions.SectionName));
+builder.Services.Configure<HybridSearchOptions>(builder.Configuration.GetSection(HybridSearchOptions.SectionName));
+builder.Services.Configure<MemoryOptions>(builder.Configuration.GetSection(MemoryOptions.SectionName));
+builder.Services.Configure<SelfReflectionOptions>(builder.Configuration.GetSection(SelfReflectionOptions.SectionName));
+builder.Services.Configure<CitationOptions>(builder.Configuration.GetSection(CitationOptions.SectionName));
+
 // ========== 2. 数据库配置 ==========
 builder.Services.AddDbContext<AppEnterpriseAiContext>(options =>
 {
@@ -221,6 +231,12 @@ builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 
 // 🆕 细粒度权限服务
 builder.Services.AddScoped<IFineGrainedPermissionService, FineGrainedPermissionService>();
+
+// ========== 🚀 V1.0 Advanced RAG Services ==========
+builder.Services.AddScoped<IQueryRewritingService, QueryRewritingService>();
+builder.Services.AddScoped<ISelfReflectionService, SelfReflectionService>();
+builder.Services.AddScoped<IConversationMemoryService, ConversationMemoryService>();
+builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 
 // ========== 5. Agent智能体服务注册 ==========
 builder.Services.AddSingleton<IToolRegistry, ToolRegistry>();

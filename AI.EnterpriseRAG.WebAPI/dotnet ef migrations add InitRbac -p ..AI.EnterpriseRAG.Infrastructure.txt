@@ -1,3 +1,8 @@
-dotnet ef migrations add InitRbac -p ..AI.EnterpriseRAG.Infrastructure
+dotnet ef migrations add AddFinePermissionControl -p ..AI.EnterpriseRAG.Infrastructure
 
 dotnet ef migrations remove -p ../AI.EnterpriseRAG.Infrastructure
+
+
+dotnet ef migrations add AddFineGrainedPermissionTables --project ..\AI.EnterpriseRAG.Infrastructure --startup-project . 
+
+dotnet ef database update --project ..\AI.EnterpriseRAG.Infrastructure --startup-project . --verbose

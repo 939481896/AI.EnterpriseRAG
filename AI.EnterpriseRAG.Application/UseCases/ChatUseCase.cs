@@ -1,4 +1,5 @@
-﻿using AI.EnterpriseRAG.Core.Constants;
+﻿using AI.EnterpriseRAG.Core.Configuration;
+using AI.EnterpriseRAG.Core.Constants;
 using AI.EnterpriseRAG.Core.Exceptions;
 using AI.EnterpriseRAG.Core.Utils;
 using AI.EnterpriseRAG.Domain.Entities;
@@ -6,6 +7,7 @@ using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 
@@ -14,8 +16,9 @@ namespace AI.EnterpriseRAG.Application.UseCases;
 /// <summary>
 /// 问答用例实现（企业级核心RAG逻辑）
 /// 优化点：Prompt增强、相似度过滤、上下文截断、重复初始化优化、异常分级处理、可观测性增强
+/// V1.0: HyDE, Multi-Query, Self-Reflection, Citations
 /// </summary>
-public class ChatUseCase : IChatUseCase
+public partial class ChatUseCase : IChatUseCase
 {
     private readonly ILlmService _llmService;
     private readonly IVectorStore _vectorStore;
@@ -24,13 +27,20 @@ public class ChatUseCase : IChatUseCase
     private readonly IPermissionService _permissionService;
     private readonly IRerankService _rerankService;
 
+    // V1.0 Services (optional for backward compatibility)
+    private readonly IQueryRewritingService? _queryRewriting;
+    private readonly ISelfReflectionService? _selfReflection;
+    private readonly IConversationMemoryService? _memory;
+    private readonly IHybridSearchService? _hybridSearch;
+
+    // 🆕 V1.0 Configuration
+    private readonly RagOptions _ragConfig;
+    private readonly HydeOptions? _hydeConfig;
+    private readonly MultiQueryOptions? _multiQueryConfig;
+    private readonly MemoryOptions? _memoryConfig;
     // 缓存向量库CollectionID，避免重复初始化（线程安全）
     private string? _cachedCollectionId;
     private readonly SemaphoreSlim _initLock = new SemaphoreSlim(1, 1);
-
-    // 从常量类读取核心配置（避免硬编码）
-    private readonly float _minSimilarityThreshold = LLMConstants.MIN_SEARCH_SIMILARITY;
-    private readonly int _maxContextToken = LLMConstants.MAX_CONTEXT_TOKEN;
 
     public ChatUseCase(
         ILlmService llmService,
@@ -38,7 +48,15 @@ public class ChatUseCase : IChatUseCase
         IChatConversationRepository chatRepo,
         IPermissionService permissionService,
         IRerankService rerankService,
-        ILogger<ChatUseCase> logger)
+        ILogger<ChatUseCase> logger,
+        IOptions<RagOptions> ragOptions,
+        IQueryRewritingService? queryRewriting = null,
+        ISelfReflectionService? selfReflection = null,
+        IConversationMemoryService? memory = null,
+        IHybridSearchService? hybridSearch = null,
+        IOptions<HydeOptions>? hydeOptions = null,
+        IOptions<MultiQueryOptions>? multiQueryOptions = null,
+        IOptions<MemoryOptions>? memoryOptions = null)
     {
         _llmService = llmService;
         _vectorStore = vectorStore;
@@ -46,6 +64,16 @@ public class ChatUseCase : IChatUseCase
         _permissionService = permissionService;
         _rerankService= rerankService;
         _logger = logger;
+        _queryRewriting = queryRewriting;
+        _selfReflection = selfReflection;
+        _memory = memory;
+        _hybridSearch = hybridSearch;
+
+        // Configuration
+        _ragConfig = ragOptions.Value;
+        _hydeConfig = hydeOptions?.Value;
+        _multiQueryConfig = multiQueryOptions?.Value;
+        _memoryConfig = memoryOptions?.Value;
     }
 
     public async Task<(string Answer, List<string> References, decimal CostSeconds)> ChatAsync(
@@ -218,7 +246,7 @@ public class ChatUseCase : IChatUseCase
             }
             else
             {
-                _logger.LogWarning("用户{UserId}未检索到有效分块（相似度低于{Threshold}）", userId, _minSimilarityThreshold);
+                _logger.LogWarning("用户{UserId}未检索到有效分块（相似度低于{Threshold}）", userId, _ragConfig.MinSimilarityThreshold);
             }
 
             // 5. 构建上下文（超长截断+空值兜底）
@@ -341,7 +369,7 @@ public class ChatUseCase : IChatUseCase
 
         // 过滤低相似度分块 + 按相似度降序排序
         return matchedChunks
-            .Where(chunk => chunk.Similarity >= _minSimilarityThreshold)
+            .Where(chunk => chunk.Similarity >= _ragConfig.MinSimilarityThreshold)
             .OrderByDescending(chunk => chunk.Similarity)
             .ToList();
     }
@@ -365,10 +393,10 @@ public class ChatUseCase : IChatUseCase
             var tempContext = contextBuilder.Append(content + "\n\n").ToString();
             var tempTokenCount = TokenCounter.EstimateTokenCount(tempContext);
 
-            if (tempTokenCount > _maxContextToken)
+            if (tempTokenCount > _ragConfig.MaxContextTokens)
             {
                 _logger.LogWarning("上下文超长，已截断至{MaxToken}Token（当前{TempToken}Token）",
-                    _maxContextToken, tempTokenCount);
+                    _ragConfig.MaxContextTokens, tempTokenCount);
                 break;
             }
 
@@ -399,10 +427,10 @@ public class ChatUseCase : IChatUseCase
     /// </summary>
     private void ValidatePromptTokenCount(int tokenCount)
     {
-        if (tokenCount > LLMConstants.MAX_PROMPT_TOKEN)
+        if (tokenCount > _ragConfig.MaxPromptTokens)
         {
             throw new BusinessException(400,
-                $"{LLMConstants.PROMPT_EXCEED_TOKEN_MSG}（当前Token数：{tokenCount}，最大允许：{LLMConstants.MAX_PROMPT_TOKEN}）");
+                $"{LLMConstants.PROMPT_EXCEED_TOKEN_MSG}（当前Token数：{tokenCount}，最大允许：{_ragConfig.MaxPromptTokens}）");
         }
     }
 

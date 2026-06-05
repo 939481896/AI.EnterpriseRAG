@@ -13,4 +13,13 @@ public interface IChatUseCase
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>回答结果</returns>
     Task<(string Answer, List<string> References, decimal CostSeconds)> ChatAsync(string userId, string question, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// V1.0 智能问答 (HyDE + Multi-Query + Self-Reflection)
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="question">问题</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>回答结果</returns>
+    Task<(string Answer, List<string> References, decimal CostSeconds)> ChatV1Async(string userId, string question, CancellationToken cancellationToken = default);
 }

@@ -57,4 +57,37 @@ public class ChatController : ControllerBase
 
         return Ok(Result<ChatResponseDto>.SuccessResult(response));
     }
+
+    /// <summary>
+    /// V1.0 智能问答 (HyDE + Multi-Query + Self-Reflection)
+    /// </summary>
+    /// <param name="request">问答请求</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>问答结果</returns>
+    [HttpPost("ask-v1")]
+    //[Permission("chat.ask")]
+    public async Task<IActionResult> AskV1([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
+    {
+        // 从 Token 自动获取当前登录用户 ID，禁止前端传入！
+        /*var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(Result.Fail("用户未登录"));
+        */
+        // 用 Token 里的真实用户ID，不相信前端传入的 request.UserId
+        var (answer, references, costSeconds) = await _chatUseCase.ChatV1Async(
+            request.UserId,
+            request.Question,
+            cancellationToken);
+
+        var response = new ChatResponseDto
+        {
+            Answer = answer,
+            References = references,
+            CostSeconds = costSeconds
+        };
+
+        return Ok(Result<ChatResponseDto>.SuccessResult(response));
+    }
 }

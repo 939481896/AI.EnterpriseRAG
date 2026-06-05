@@ -258,9 +258,9 @@ public class QdrantVectorStore : IVectorStore
 
 
                 // 写入日志（使用Information级别确保被记录）
-                _logger.LogInformation("━━━━━━ Qdrant Request JSON ━━━━━━");
-                _logger.LogInformation("{Json}", requestJson);
-                _logger.LogInformation("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                //_logger.LogInformation("━━━━━━ Qdrant Request JSON ━━━━━━");
+                //_logger.LogInformation("{Json}", requestJson);
+                //_logger.LogInformation("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
                 ms.Position = 0;
 
