@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36221.1
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11626.88 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 	ProjectSection(SolutionItems) = preProject
@@ -21,6 +21,8 @@ EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AI.EnterpriseRAG.Parser", "AI.EnterpriseRAG.Parser\AI.EnterpriseRAG.Parser.pyproj", "{6C6BD86E-4847-4ECB-B677-F78E718A8CA5}"
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AI.Content.System", "AI.Content.System\AI.Content.System.pyproj", "{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AI.EnterpriseRAG.Frontend", "frontend\AI.EnterpriseRAG.Frontend.csproj", "{B4B9DDA9-D449-7AE0-130D-E154D17F87BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -52,6 +54,10 @@ Global
 		{6C6BD86E-4847-4ECB-B677-F78E718A8CA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4B9DDA9-D449-7AE0-130D-E154D17F87BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4B9DDA9-D449-7AE0-130D-E154D17F87BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4B9DDA9-D449-7AE0-130D-E154D17F87BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4B9DDA9-D449-7AE0-130D-E154D17F87BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -64,6 +70,7 @@ Global
 		{58FFD90F-3DED-4E5C-B1DA-E5EEF1DCC839} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{6C6BD86E-4847-4ECB-B677-F78E718A8CA5} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{3B72B442-40F4-4D3C-BF12-7D3BE90C1D26} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{B4B9DDA9-D449-7AE0-130D-E154D17F87BD} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {54447075-EDDE-4478-AFB1-58E8C2C140E0}
