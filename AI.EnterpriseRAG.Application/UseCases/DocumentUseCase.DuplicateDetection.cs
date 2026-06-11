@@ -278,33 +278,35 @@ public partial class DocumentUseCase
             // 异步提交后台处理（不等待）
             _ = Task.Run(async () =>
             {
+                _logger.LogInformation("🔄 [Reprocess] Task.Run started for document: {DocumentId}", document.Id);
+
                 using var processingSlot = await _throttler.AcquireAsync(document.Id);
+                _logger.LogInformation("🔄 [Reprocess] Slot acquired, creating scope for: {DocumentId}", document.Id);
+
                 using var processingScope = _serviceProvider.CreateScope();
+                _logger.LogInformation("🔄 [Reprocess] Scope created, resolving services for: {DocumentId}", document.Id);
 
                 try
                 {
                     var llmService = processingScope.ServiceProvider.GetRequiredService<ILlmService>();
                     var vectorStore = processingScope.ServiceProvider.GetRequiredService<IVectorStore>();
                     var docRepo = processingScope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-                    var unstructuredClient = processingScope.ServiceProvider.GetRequiredService<UnstructuredClient>();
+                    _logger.LogInformation("🔄 [Reprocess] Services resolved for: {DocumentId}", document.Id);
 
-                    _logger.LogInformation("🔄 [重新处理] 开始解析文档：{DocumentId}", document.Id);
+                    _logger.LogInformation("🔄 [Reprocess] Starting document parsing: {DocumentId}", document.Id);
 
-                    // 重新解析和处理文档
+                    // ✅ Use .NET native parser (replaced Unstructured)
                     using var fileReadStream = new FileStream(storagePath, FileMode.Open, FileAccess.Read);
-                    var chunks = await unstructuredClient.ParseDocumentAsync(fileReadStream, document.Name);
 
-                    // 合并内容
-                    var contentBuilder = new System.Text.StringBuilder(chunks.Count * 800);
-                    foreach (var chunk in chunks)
+                    // Get appropriate parser for file type
+                    var parser = _documentParsers.FirstOrDefault(p => p.SupportedFileType == document.FileType);
+                    if (parser == null)
                     {
-                        if (!string.IsNullOrWhiteSpace(chunk.Content))
-                        {
-                            contentBuilder.Append(chunk.Content);
-                            contentBuilder.Append("\n\n");
-                        }
+                        throw new BusinessException($"No parser found for file type: {document.FileType}");
                     }
-                    var rawContent = contentBuilder.ToString();
+
+                    // Parse document - use CancellationToken.None for background processing
+                    var rawContent = await parser.ParseAsync(fileReadStream, CancellationToken.None);
                     var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
 
                     // 分块
@@ -351,7 +353,7 @@ public partial class DocumentUseCase
                     document.CompleteTime = DateTime.Now;
                     await docRepo.UpdateAsync(document);
                 }
-            }, cancellationToken);
+            }, CancellationToken.None); // ✅ Use None to prevent premature cancellation
 
             _logger.LogInformation("✅ [重新处理] 文档已重新提交：{DocumentId}", documentId);
         }

@@ -1,9 +1,8 @@
 import axios, { AxiosError } from 'axios'
-import { message } from 'antd'
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5243',
-  timeout: 60000, // 60 seconds for LLM responses
+  timeout: 300000, // 🆕 5 minutes (300s) for LLM responses - matching backend timeout
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,43 +32,20 @@ apiClient.interceptors.response.use(
     return response.data
   },
   (error: AxiosError<any>) => {
-    // Handle common errors
-    if (error.response) {
-      const { status, data } = error.response
+    // Only handle 401 globally for protected routes (not login page)
+    if (error.response?.status === 401) {
+      // Don't redirect if already on login page or if it's a login request
+      const isLoginRequest = error.config?.url?.includes('/auth/login')
+      const isOnLoginPage = window.location.pathname === '/login'
 
-      switch (status) {
-        case 401:
-          // Unauthorized - token expired or invalid
-          message.error('登录已过期，请重新登录')
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          window.location.href = '/login'
-          break
-        
-        case 403:
-          // Forbidden - no permission
-          message.error('无权限访问该资源')
-          break
-        
-        case 404:
-          message.error('请求的资源不存在')
-          break
-        
-        case 500:
-          message.error(data?.message || '服务器内部错误')
-          break
-        
-        default:
-          message.error(data?.message || '请求失败，请稍后重试')
+      if (!isLoginRequest && !isOnLoginPage) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
       }
-    } else if (error.request) {
-      // Request sent but no response
-      message.error('网络连接失败，请检查网络')
-    } else {
-      // Error in request setup
-      message.error('请求配置错误')
     }
 
+    // Don't show error messages here to prevent duplicates
     return Promise.reject(error)
   }
 )

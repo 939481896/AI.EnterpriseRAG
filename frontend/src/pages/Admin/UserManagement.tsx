@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Switch,
-  Tag,
   Typography,
   message,
   Popconfirm,
@@ -21,47 +20,83 @@ import {
   PhoneOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import type { User } from '@/types/auth'
+import { userApi } from '@/api/user'
 import dayjs from 'dayjs'
 import './UserManagement.css'
 
 const { Title } = Typography
 
 export default function UserManagement() {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      account: 'admin',
-      realName: '管理员',
-      email: 'admin@example.com',
-      department: 'IT部门',
-      isActive: true,
-      createTime: '2024-01-01T00:00:00Z',
-    },
-    {
-      id: '2',
-      account: 'user001',
-      realName: '张三',
-      email: 'zhangsan@example.com',
-      department: '产品部',
-      isActive: true,
-      createTime: '2024-02-15T00:00:00Z',
-    },
-    {
-      id: '3',
-      account: 'user002',
-      realName: '李四',
-      email: 'lisi@example.com',
-      department: '研发部',
-      isActive: false,
-      createTime: '2024-03-20T00:00:00Z',
-    },
-  ])
-
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  // Fetch users
+  const { data, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await userApi.getUsers(1, 100)
+      return response.data?.items || []
+    },
+  })
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: (values: any) => userApi.createUser(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success('用户已添加')
+      setIsModalOpen(false)
+      form.resetFields()
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || '添加失败')
+    },
+  })
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      userApi.updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success('用户信息已更新')
+      setIsModalOpen(false)
+      form.resetFields()
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || '更新失败')
+    },
+  })
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => userApi.deleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success('用户已删除')
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || '删除失败')
+    },
+  })
+
+  // Toggle status mutation
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
+      userApi.toggleUserStatus(userId, isActive),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      message.success(variables.isActive ? '用户已启用' : '用户已禁用')
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || '操作失败')
+    },
+  })
 
   const handleAdd = () => {
     setEditingUser(null)
@@ -76,43 +111,28 @@ export default function UserManagement() {
   }
 
   const handleDelete = (userId: string) => {
-    setUsers(users.filter((u) => u.id !== userId))
-    message.success('用户已删除')
+    deleteUserMutation.mutate(userId)
   }
 
   const handleToggleStatus = (userId: string, isActive: boolean) => {
-    setUsers(
-      users.map((u) => (u.id === userId ? { ...u, isActive } : u))
-    )
-    message.success(isActive ? '用户已启用' : '用户已禁用')
+    toggleStatusMutation.mutate({ userId, isActive })
   }
 
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields()
-      
-      if (editingUser) {
-        // Update user
-        setUsers(
-          users.map((u) =>
-            u.id === editingUser.id ? { ...u, ...values } : u
-          )
-        )
-        message.success('用户信息已更新')
-      } else {
-        // Add user
-        const newUser: User = {
-          id: Date.now().toString(),
-          ...values,
-          isActive: true,
-          createTime: new Date().toISOString(),
-        }
-        setUsers([...users, newUser])
-        message.success('用户已添加')
-      }
 
-      setIsModalOpen(false)
-      form.resetFields()
+      if (editingUser) {
+        // Update user (exclude password)
+        const { password, ...updateData } = values
+        updateUserMutation.mutate({
+          id: editingUser.id,
+          data: updateData,
+        })
+      } else {
+        // Create user
+        createUserMutation.mutate(values)
+      }
     } catch (error) {
       console.error('Validation failed:', error)
     }
@@ -161,6 +181,7 @@ export default function UserManagement() {
           onChange={(checked) => handleToggleStatus(record.id, checked)}
           checkedChildren="启用"
           unCheckedChildren="禁用"
+          loading={toggleStatusMutation.isPending}
         />
       ),
     },
@@ -191,7 +212,13 @@ export default function UserManagement() {
             cancelText="取消"
             okType="danger"
           >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleteUserMutation.isPending}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -211,8 +238,9 @@ export default function UserManagement() {
 
       <Table
         columns={columns}
-        dataSource={users}
+        dataSource={data}
         rowKey="id"
+        loading={isLoading}
         pagination={{
           pageSize: 10,
           showSizeChanger: true,
@@ -228,12 +256,9 @@ export default function UserManagement() {
         width={600}
         okText="确定"
         cancelText="取消"
+        confirmLoading={createUserMutation.isPending || updateUserMutation.isPending}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          autoComplete="off"
-        >
+        <Form form={form} layout="vertical" autoComplete="off">
           <Form.Item
             name="account"
             label="账号"
@@ -243,7 +268,11 @@ export default function UserManagement() {
               { pattern: /^[a-zA-Z0-9_]+$/, message: '只能包含字母、数字、下划线' },
             ]}
           >
-            <Input prefix={<UserOutlined />} placeholder="账号" disabled={!!editingUser} />
+            <Input
+              prefix={<UserOutlined />}
+              placeholder="账号"
+              disabled={!!editingUser}
+            />
           </Form.Item>
 
           {!editingUser && (

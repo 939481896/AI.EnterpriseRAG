@@ -20,6 +20,7 @@ public class OllamaLlmService : ILlmService
         _httpClient = httpClient;
         _options = llmOptions.Value;
         _httpClient.BaseAddress = new Uri(_options.Ollama.BaseUrl);
+        _httpClient.Timeout = TimeSpan.FromMinutes(5); // 设置5分钟超时，适配LLM长时间推理
         _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
     }
 

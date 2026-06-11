@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import AppLayout from './components/Layout/AppLayout'
 import LoginPage from './pages/Auth/LoginPage'
@@ -11,12 +12,19 @@ import UserManagement from './pages/Admin/UserManagement'
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-  
+  const { isAuthenticated, validateToken, logout } = useAuthStore()
+
+  useEffect(() => {
+    // Validate token on mount and every time route changes
+    if (isAuthenticated && !validateToken()) {
+      logout()
+    }
+  }, [isAuthenticated, validateToken, logout])
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
-  
+
   return <>{children}</>
 }
 
@@ -27,7 +35,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
+
         {/* Protected routes */}
         <Route
           path="/*"

@@ -92,6 +92,32 @@ public class DocumentController : ControllerBase
         return Ok(Result<DocumentUploadResponseDto>.SuccessResult(response, "文档上传成功，后台处理中"));
     }
 
+    /// <summary>
+    /// 获取文档列表
+    /// </summary>
+    [HttpGet("list")]
+    [Authorize]
+    public async Task<IActionResult> GetDocuments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? User.FindFirstValue(ClaimTypes.Name)
+                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(Result.Fail("用户未登录"));
+
+        var documents = await _documentUseCase.GetUserDocumentsAsync(
+            userId,
+            page,
+            pageSize,
+            cancellationToken);
+
+        return Ok(Result<object>.SuccessResult(documents));
+    }
+
     [HttpDelete("deleteCollection")]
     [Permission("doc.delete")]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]

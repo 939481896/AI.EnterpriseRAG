@@ -1,4 +1,5 @@
-import { Form, Input, Button, Card, Typography, message } from 'antd'
+import React from 'react'
+import { Form, Input, Button, Card, Typography } from 'antd'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLogin } from '@/hooks/useAuth'
@@ -15,9 +16,12 @@ export default function LoginPage() {
   const handleSubmit = async (values: LoginRequest) => {
     try {
       await login.mutateAsync(values)
+      // 只有登录成功才会执行到这里
       navigate('/chat')
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '登录失败')
+    } catch (error) {
+      // 错误已经在 useLogin hook 中处理并显示
+      // 不需要任何额外操作，更不要导航
+      console.error('登录失败:', error)
     }
   }
 
@@ -60,15 +64,15 @@ export default function LoginPage() {
             />
           </Form.Item>
                   <Form.Item
-                      name="tenantId"
-                      rules={[{ required: true, message: '请输入租户' }]}
+                    name="tenantId"
+                    rules={[{ required: true, message: '请输入租户' }]}
+                    initialValue="default"
                   >
-             <Input
-                prefix={<UserOutlined />}
-                placeholder="租户"
-                autoComplete="default"
-             />
-          </Form.Item>
+                    <Input
+                      prefix={<UserOutlined />}
+                      placeholder="租户ID"
+                    />
+                  </Form.Item>
           <Form.Item>
             <Button
               type="primary"

@@ -11,14 +11,13 @@ export function useLogin() {
         mutationFn: (data: LoginRequest) => authApi.login(data),
         onSuccess: (response) => {
             if (response.success && response.data) {
-                // ✅ 修正：使用正确的 accessToken 字段
                 const { accessToken, userName, permissions } = response.data
 
-                // ✅ 修正：根据后端返回的数据，手动组装前端需要的 user 对象
-                const userInfo = {
+                // 组装用户信息
+                const userInfo: any = {
+                    account: userName, // 暂时使用 userName 作为 account
                     userName,
                     permissions,
-                    // 如果后端还有其他用户信息，也可以在这里补充
                 }
 
                 setToken(accessToken)
@@ -30,8 +29,14 @@ export function useLogin() {
                 message.success('登录成功')
             }
         },
-        onError: () => {
-            message.error('登录失败，请检查账号密码')
+        onError: (error: any) => {
+            // ✅ 正确提取后端返回的错误消息
+            const errorMessage = error.response?.data?.message 
+                              || error.response?.data?.error
+                              || error.message 
+                              || '登录失败，请检查账号密码'
+            message.error(errorMessage)
+            console.error('登录错误:', error)
         },
     })
 }

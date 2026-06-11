@@ -1,16 +1,16 @@
 export interface User {
-  id: string
+  id?: string
   account: string
-  realName: string
-  email: string
-  department?: string
-  isActive: boolean
-  createTime: string
+  userName: string
+  permissions: string[]
+  isEnabled?: boolean
+  createTime?: string
 }
 
 export interface LoginRequest {
   account: string
   password: string
+  tenantId: string
 }
 
 export interface RegisterRequest {
@@ -23,9 +23,11 @@ export interface RegisterRequest {
 }
 
 export interface LoginResponse {
-  token: string
+  accessToken: string
+  refreshToken: string
   expiresIn: number
-  user: User
+  userName: string
+  permissions: string[]
 }
 
 export interface ApiResponse<T = any> {

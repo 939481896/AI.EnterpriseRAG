@@ -1,7 +1,9 @@
 ﻿using AI.EnterpriseRAG.Application.Authorization;
 using AI.EnterpriseRAG.Application.UseCases;
 using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
+using AI.EnterpriseRAG.Application.Validators.Auth; // 🆕 FluentValidation
 using AI.EnterpriseRAG.Core.Configuration; // 🆕 V1.0 Configuration
+using AI.EnterpriseRAG.Core.Resources; // 🆕 MessageResources
 using AI.EnterpriseRAG.Core.Exceptions;
 using AI.EnterpriseRAG.Core.Models;
 using AI.EnterpriseRAG.Domain.Entities;
@@ -23,6 +25,8 @@ using AI.EnterpriseRAG.Infrastructure.Services.Agent;
 using AI.EnterpriseRAG.Infrastructure.Services.Agent.Tools;
 using AI.EnterpriseRAG.WebAPI;
 using AI.EnterpriseRAG.WebAPI.Middleware; // 🆕 开发环境中间件
+using FluentValidation; // 🆕 FluentValidation
+using FluentValidation.AspNetCore; // 🆕 FluentValidation.AspNetCore
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -196,17 +200,38 @@ builder.Services.AddDbContext<AppEnterpriseAiContext>(options =>
 });
 
 // ========== 3. 基础服务 ==========
-builder.Services.AddHttpClient<OllamaLlmService>();
-builder.Services.AddHttpClient<TongyiLlmService>();
-builder.Services.AddHttpClient<IRerankService, BgeRerankService>();
+// 🆕 配置 HttpClient 超时时间（5分钟，适配大模型响应）
+builder.Services.AddHttpClient<OllamaLlmService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5); // LLM 响应可能较慢
+});
+builder.Services.AddHttpClient<TongyiLlmService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5); // LLM 响应可能较慢
+});
+builder.Services.AddHttpClient<IRerankService, BgeRerankService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30); // Rerank 通常较快
+});
 
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IChatConversationRepository, ChatConversationRepository>();
 builder.Services.AddScoped<DocumentChunkingService>();
 
-// 文档解析器
-builder.Services.AddScoped<IDocumentParser, PdfDocumentParser>();
-builder.Services.AddScoped<IDocumentParser, TxtDocumentParser>();
+// ========== 🆕 Document Parsers (100% .NET Native) ==========
+// ✅ All parsers use Apache 2.0 / MIT licensed libraries
+// ✅ No Python dependencies required
+// ✅ Production-ready enterprise parsers
+
+builder.Services.AddScoped<IDocumentParser, PdfPigParser>();        // PDF (Apache 2.0) - Replaces iText7
+builder.Services.AddScoped<IDocumentParser, NpoiWordParser>();      // Word .doc/.docx (Apache 2.0)
+builder.Services.AddScoped<IDocumentParser, NpoiExcelParser>();     // Excel .xls/.xlsx (Apache 2.0)
+builder.Services.AddScoped<IDocumentParser, MarkdigParser>();       // Markdown .md (BSD-2-Clause)
+builder.Services.AddScoped<IDocumentParser, HtmlParser>();          // HTML (MIT)
+builder.Services.AddScoped<IDocumentParser, CsvParser>();           // CSV (MS-PL/Apache 2.0)
+builder.Services.AddScoped<IDocumentParser, TxtDocumentParser>();   // Plain text (existing)
+
+Log.Information("✅ Document parsers registered: PDF, Word, Excel, Markdown, HTML, CSV, TXT");
 
 // 大模型自动切换
 // 大模型服务（企业级多模型切换）
@@ -223,7 +248,9 @@ else
 {
     builder.Services.AddScoped<ILlmService, OllamaLlmService>();
 }
-builder.Services.AddScoped<UnstructuredClient>();
+
+// 🗑️ UnstructuredClient removed - no longer needed with .NET native parsers
+// builder.Services.AddScoped<UnstructuredClient>();
 
 // 向量库自动切换
 var vectorStoreOptions = builder.Configuration.GetSection("VectorStoreOptions").Get<VectorStoreOptions>();
@@ -286,6 +313,16 @@ builder.Services.AddSingleton<DocumentProcessingThrottler>(sp =>
         logger: sp.GetRequiredService<ILogger<DocumentProcessingThrottler>>(),
         maxConcurrency: 3)); // 最多同时处理3个文档
 
+// ========== 🆕 FluentValidation 注册 ==========
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddFluentValidationClientsideAdapters();
+builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
+
+// ========== 🆕 消息资源配置 ==========
+var language = builder.Configuration["App:Language"] ?? "zh-CN";
+MessageResources.SetLanguage(language);
+Log.Information("✅ 消息资源已配置 | Language: {Language}", language);
+
 // ========== API & Swagger ==========
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -341,8 +378,8 @@ if (app.Environment.IsDevelopment())
     // 🆕 开发环境自动认证（调试时自动登录为admin）
     // 启用后，所有请求都会自动注入admin用户身份，无需token
     // 如需测试真实JWT验证，注释此行
-    app.UseDevAutoAuth();
-    Log.Information("✅ 开发环境自动认证已启用（自动以admin身份登录）");
+    //app.UseDevAutoAuth();
+    //Log.Information("✅ 开发环境自动认证已启用（自动以admin身份登录）");
 }
 app.UseMiddleware<GlobalLogMiddleware>();
 app.UseMiddleware<PermissionAuditMiddleware>();
@@ -360,12 +397,13 @@ app.Use(async (context, next) =>
 
         await context.Response.WriteAsJsonAsync(Result.Fail(ex.Message, ex.Code));
     }
-    catch (UnauthorizedAccessException Uae)
+    catch (UnauthorizedAccessException uae)
     {
         context.Response.StatusCode = 401;
-        Log.Warning(Uae, "未授权访问");
+        Log.Warning(uae, "未授权访问：{Msg}", uae.Message);
 
-        await context.Response.WriteAsJsonAsync(Result.Fail("未授权或令牌过期", 401));
+        // ✅ 返回原始的异常消息，而不是固定文本
+        await context.Response.WriteAsJsonAsync(Result.Fail(uae.Message, 401));
     }
     catch (Exception ex)
     {

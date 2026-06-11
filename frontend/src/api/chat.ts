@@ -28,8 +28,21 @@ export const chatApi = {
   /**
    * Get session messages
    */
-  getSessionMessages: async (sessionId: string): Promise<ApiResponse> => {
+  getSessionMessages: async (sessionId: string): Promise<ApiResponse<{
+    session: ConversationSession
+    messages: any[]
+  }>> => {
     return apiClient.get(`/api/chat/sessions/${sessionId}/messages`)
+  },
+
+  /**
+   * Create new session
+   */
+  createSession: async (data: {
+    userId: string
+    title?: string
+  }): Promise<ApiResponse<{ id: string; userId: string; title: string; createdAt: string }>> => {
+    return apiClient.post('/api/chat/sessions', data)
   },
 
   /**

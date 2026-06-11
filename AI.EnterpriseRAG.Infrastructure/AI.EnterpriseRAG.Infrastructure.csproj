@@ -7,8 +7,26 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DocX" Version="5.0.0" />
-    <PackageReference Include="itext7" Version="8.0.0" />
+    <!-- 🆕 Enterprise Document Parsing Libraries (100% .NET Native) -->
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+    <!-- 👆 Apache 2.0 - PDF parsing without AGPL restrictions (replaces itext7) -->
+
+    <PackageReference Include="NPOI" Version="2.7.1" />
+    <!-- 👆 Apache 2.0 - Word (.doc/.docx) + Excel (.xls/.xlsx) parsing -->
+
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.2.0" />
+    <!-- 👆 MIT - Official Microsoft library for Office documents (.docx/.xlsx/.pptx) -->
+
+    <PackageReference Include="Markdig" Version="0.37.0" />
+    <!-- 👆 BSD-2-Clause - Fast and extensible Markdown parser -->
+
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.71" />
+    <!-- 👆 MIT - HTML parsing and manipulation -->
+
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
+    <!-- 👆 MS-PL/Apache 2.0 - High-performance CSV parser -->
+
+    <!-- Existing packages -->
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.24" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.3">

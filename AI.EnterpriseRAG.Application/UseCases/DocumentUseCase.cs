@@ -7,6 +7,7 @@ using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
 using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
+using AI.EnterpriseRAG.Infrastructure.Persistence;
 using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ namespace AI.EnterpriseRAG.Application.UseCases;
 public partial class DocumentUseCase : IDocumentUseCase
 {
     private readonly IDocumentRepository _documentRepository;
+    private readonly AppEnterpriseAiContext _context;
     private readonly IEnumerable<IDocumentParser> _documentParsers;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DocumentUseCase> _logger;
@@ -31,12 +33,14 @@ public partial class DocumentUseCase : IDocumentUseCase
 
     public DocumentUseCase(
         IDocumentRepository documentRepository,
+        AppEnterpriseAiContext context,
         IEnumerable<IDocumentParser> documentParsers,
         IServiceProvider serviceProvider,
         ILogger<DocumentUseCase> logger,
         DocumentProcessingThrottler throttler) // 新增：注入并发控制
     {
         _documentRepository = documentRepository;
+        _context = context;
         _documentParsers = documentParsers;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -175,32 +179,26 @@ public partial class DocumentUseCase : IDocumentUseCase
                 var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
                 var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
 
-                // ========== 核心：混合方案（Unstructured解析 + 自定义分块）==========
-                // 6.1 使用Unstructured解析文档（支持多格式：PDF/Word/Excel/PPT...）
-                _logger.LogInformation("开始解析文档：{DocumentId}", document.Id);
+                // ========== Core: Use .NET Native Parsers (Replaced Unstructured) ==========
+                // 6.1 Parse document using appropriate .NET parser
+                _logger.LogInformation("Starting document parsing: {DocumentId}", document.Id);
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-                var unstructuredClient = scope.ServiceProvider.GetRequiredService<UnstructuredClient>();
-                var unstructuredChunks = await unstructuredClient.ParseDocumentAsync(fileStream, document.Name);
 
-                // 6.2 优化：使用StringBuilder流式合并（避免内存峰值）
-                var contentBuilder = new System.Text.StringBuilder(unstructuredChunks.Count * 800); // 预分配容量
-                foreach (var chunk in unstructuredChunks)
+                // Get the appropriate parser for this file type
+                var documentParser = _documentParsers.FirstOrDefault(p => p.SupportedFileType == fileType);
+                if (documentParser == null)
                 {
-                    if (!string.IsNullOrWhiteSpace(chunk.Content))
-                    {
-                        contentBuilder.Append(chunk.Content);
-                        contentBuilder.Append("\n\n");
-                    }
+                    throw new BusinessException($"No parser found for file type: {fileType}");
                 }
-                var rawContent = contentBuilder.ToString();
-                _logger.LogInformation("文档解析完成，原始内容长度：{Length}字符", rawContent.Length);
 
-                // 6.3 清洗文本（去页眉/页脚/版权/页码）
+                // Parse document to extract text
+                var rawContent = await documentParser.ParseAsync(fileStream, cancellationToken);
+                _logger.LogInformation("Document parsing complete, content length: {Length} characters", rawContent.Length);
+
+                // 6.3 Clean text (remove headers/footers/copyright/page numbers)
                 var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
 
-                // 优化：大文档提前释放内存
-                contentBuilder.Clear();
-                contentBuilder = null;
+                // Optimization: Release memory early for large documents
                 rawContent = null;
                 GC.Collect(0, GCCollectionMode.Optimized);
 
@@ -230,13 +228,13 @@ public partial class DocumentUseCase : IDocumentUseCase
                 }).ToList();
 
                 /* 
-                🔹 混合方案说明：
-                1. Unstructured负责文档解析（支持PDF、Word、Excel、PPT等多格式）
-                2. 合并所有Unstructured返回的chunk为完整文本
-                3. 使用DocumentChunkingService重新分块（精确控制250字符）
-                4. 优势：保留多格式支持 + 精确控制Chunk大小
+                🔹 .NET Native Parsing Approach:
+                1. Use appropriate .NET parser based on file type (PdfPig, NPOI, Markdig, etc.)
+                2. Extract complete text with structure preservation
+                3. Use DocumentChunkingService for semantic chunking (precise 250-character control)
+                4. Advantages: No Python dependencies + Better performance + Enterprise licenses
                 */
-                _logger.LogInformation("文档{DocumentId}解析完成，分块数：{ChunkCount}", document.Id, chunks.Count);
+                _logger.LogInformation("Document {DocumentId} parsing complete, chunk count: {ChunkCount}", document.Id, chunks.Count);
 
                 // 6.3 初始化向量库
                 await vectorStore.InitAsync();

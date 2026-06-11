@@ -7,7 +7,7 @@ import type { ChatRequest } from '@/types/chat'
 
 export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
   const { user } = useAuthStore()
-  const { addMessage, setStreaming } = useChatStore()
+  const { addMessage, setStreaming, currentSessionId, setCurrentSessionId } = useChatStore()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -22,9 +22,23 @@ export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
         timestamp: new Date(),
       })
 
+      // Create session if none exists
+      let sessionId = currentSessionId
+      if (!sessionId) {
+        const sessionResponse = await chatApi.createSession({
+          userId: user.account,
+          title: question.substring(0, 30) + (question.length > 30 ? '...' : ''),
+        })
+        if (sessionResponse.success && sessionResponse.data) {
+          sessionId = sessionResponse.data.id
+          setCurrentSessionId(sessionId)
+        }
+      }
+
       const request: ChatRequest = {
         userId: user.account,
         question,
+        sessionId: sessionId || undefined, // Convert null to undefined
       }
 
       setStreaming(true)
@@ -88,5 +102,30 @@ export function useDeleteSession() {
     onError: () => {
       message.error('删除失败')
     },
+  })
+}
+
+export function useSessionMessages(sessionId: string | null) {
+  const { setMessages } = useChatStore()
+
+  return useQuery({
+    queryKey: ['session-messages', sessionId],
+    queryFn: async () => {
+      if (!sessionId) return null
+      const response = await chatApi.getSessionMessages(sessionId)
+      if (response.success && response.data) {
+        // Transform backend messages to frontend format
+        const messages = response.data.messages.map((msg: any) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.message,
+          timestamp: new Date(msg.timestamp),
+        }))
+        setMessages(messages)
+        return response.data
+      }
+      return null
+    },
+    enabled: !!sessionId,
   })
 }

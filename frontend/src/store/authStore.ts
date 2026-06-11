@@ -9,11 +9,23 @@ interface AuthState {
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
   logout: () => void
+  validateToken: () => boolean
+}
+
+// Helper function to check if token is expired
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const exp = payload.exp * 1000 // Convert to milliseconds
+    return Date.now() >= exp
+  } catch {
+    return true
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -24,18 +36,56 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
         }),
 
-      setToken: (token) =>
+      setToken: (token) => {
+        // Validate token on set
+        if (token && isTokenExpired(token)) {
+          // Token expired, clear everything
+          set({
+            token: null,
+            user: null,
+            isAuthenticated: false,
+          })
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          return
+        }
+
         set({
           token,
           isAuthenticated: !!token,
-        }),
+        })
 
-      logout: () =>
+        if (token) {
+          localStorage.setItem('token', token)
+        } else {
+          localStorage.removeItem('token')
+        }
+      },
+
+      logout: () => {
         set({
           user: null,
           token: null,
           isAuthenticated: false,
-        }),
+        })
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+      },
+
+      validateToken: () => {
+        const { token } = get()
+        if (!token) {
+          get().logout()
+          return false
+        }
+
+        if (isTokenExpired(token)) {
+          get().logout()
+          return false
+        }
+
+        return true
+      },
     }),
     {
       name: 'auth-storage',

@@ -1,6 +1,7 @@
 using AI.EnterpriseRAG.Domain.Enums;
 using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
+using AI.EnterpriseRAG.Domain.Interfaces.Services;  // ✅ Added for IVectorStore
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -59,16 +60,43 @@ public class DocumentRecoveryService : IHostedService
 
             if (timedOutDocuments.Any())
             {
-                _logger.LogWarning("🔴 [文档恢复服务] {Count} 个文档处理超时（>30分钟），标记为失败", 
+                _logger.LogWarning("🔴 [Document Recovery] {Count} documents timed out (>30 min), marking as failed and cleaning up", 
                     timedOutDocuments.Count);
+
+                // ✅ Get vector store for cleanup
+                var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
 
                 foreach (var doc in timedOutDocuments)
                 {
-                    doc.Status = DocumentStatus.Failed;
-                    doc.UpdateTime = DateTime.UtcNow;
-                    await documentRepository.UpdateAsync(doc);
-                    _logger.LogError("❌ [文档恢复] 文档超时：{DocId} - {FileName}", 
-                        doc.Id, doc.Name);
+                    try
+                    {
+                        // ✅ 1. Delete embeddings from vector database
+                        await vectorStore.DeleteByDocumentIdAsync(doc.Id, cancellationToken);
+                        _logger.LogInformation("🧹 [Document Recovery] Deleted vectors for timed-out document: {DocId}", doc.Id);
+
+                        // ✅ 2. Delete chunks from relational database
+                        await documentRepository.DeleteChunksByDocumentIdAsync(doc.Id, cancellationToken);
+                        _logger.LogInformation("🧹 [Document Recovery] Deleted chunks for timed-out document: {DocId}", doc.Id);
+
+                        // ✅ 3. Mark document as failed
+                        doc.Status = DocumentStatus.Failed;
+                        doc.UpdateTime = DateTime.UtcNow;
+                        await documentRepository.UpdateAsync(doc);
+
+                        _logger.LogWarning("❌ [Document Recovery] Document timed out and cleaned up: {DocId} - {FileName}", 
+                            doc.Id, doc.Name);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        _logger.LogError(cleanupEx, 
+                            "⚠️ [Document Recovery] Failed to clean up timed-out document {DocId}, marking as failed anyway", 
+                            doc.Id);
+
+                        // Still mark as failed even if cleanup fails
+                        doc.Status = DocumentStatus.Failed;
+                        doc.UpdateTime = DateTime.UtcNow;
+                        await documentRepository.UpdateAsync(doc);
+                    }
                 }
             }
 

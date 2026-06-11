@@ -1,4 +1,5 @@
 ﻿using AI.EnterpriseRAG.Application.Dtos;
+using AI.EnterpriseRAG.Core.Resources;
 using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Infrastructure.Persistence;
 using AI.EnterpriseRAG.Infrastructure.Security;
@@ -23,24 +24,29 @@ public class AuthService
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
-        // 1️ 多租户查询 + 校验用户是否启用
+        // 1️⃣ 多租户查询 + 校验用户是否启用
         var user = await _context.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Account == request.Account
                                    && u.TenantId == request.TenantId);
 
-        // 用户不存在 / 用户被禁用 / 密码错误 统一提示，防枚举攻击
-        if (user == null || !user.IsEnabled)
-            throw new UnauthorizedAccessException("认证失败");
+        // 用户不存在
+        if (user == null)
+            throw new UnauthorizedAccessException(MessageResources.Auth.InvalidCredentials);
 
+        // 用户被禁用
+        if (!user.IsEnabled)
+            throw new UnauthorizedAccessException(MessageResources.Auth.AccountDisabled);
+
+        // 密码错误
         var verify = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (verify != PasswordVerificationResult.Success)
-            throw new UnauthorizedAccessException("认证失败");
+            throw new UnauthorizedAccessException(MessageResources.Auth.InvalidCredentials);
 
-        // 2️ 获取权限
+        // 2️⃣ 获取权限
         var permissions = await GetUserPermissionsAsync(user.Id);
 
-        // 3️ 生成令牌
+        // 3️⃣ 生成令牌
         var accessToken = _tokenService.GenerateAccessToken(user, permissions);
         var refreshToken = _tokenService.GenerateRefreshToken();
 
@@ -69,7 +75,7 @@ public class AuthService
             catch
             {
                 await transaction.RollbackAsync();
-                throw new Exception("登录失败，请稍后重试");
+                throw new Exception(MessageResources.Auth.LoginFailed);
             }
         });
 
@@ -91,7 +97,7 @@ public class AuthService
 
         if (tokenRecord == null || tokenRecord.ExpireAt < DateTime.UtcNow || tokenRecord.IsRevoked)
         {
-            throw new UnauthorizedAccessException("Invalid or expired session.");
+            throw new UnauthorizedAccessException(MessageResources.Auth.RefreshTokenInvalid);
         }
 
         // Use the same helper method

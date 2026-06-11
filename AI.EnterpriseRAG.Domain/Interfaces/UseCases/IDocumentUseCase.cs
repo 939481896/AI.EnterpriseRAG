@@ -30,6 +30,15 @@ public interface IDocumentUseCase
     Task DeleteByCollectionNameAsync(Guid collectionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 获取用户的文档列表
+    /// </summary>
+    Task<object> GetUserDocumentsAsync(
+        string userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 重新处理文档（用于恢复失败的任务）
     /// </summary>
     /// <param name="documentId">文档ID</param>

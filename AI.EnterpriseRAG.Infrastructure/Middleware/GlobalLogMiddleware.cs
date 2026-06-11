@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -27,7 +28,14 @@ public class GlobalLogMiddleware
         var path = context.Request.Path;
         var method = context.Request.Method;
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "未登录";
+
+        // 使用和Controller一样的fallback链读取用户ID
+        var userId = context.User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? context.User.FindFirstValue(ClaimTypes.Name)
+                     ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? context.User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                     ?? "未登录";
+
         var permissions = string.Join(",", context.User.FindAll("perm").Select(c => c.Value));
 
         try
