@@ -1,5 +1,6 @@
 using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
+using AI.EnterpriseRAG.Core.Resources;
 using AI.EnterpriseRAG.Domain.Entities;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.WebAPI.Attribute;
@@ -13,11 +14,9 @@ namespace AI.EnterpriseRAG.WebAPI.Controllers;
 /// <summary>
 /// Document permission management controller
 /// </summary>
-[ApiController]
 [Route("api/[controller]")]
-[Produces("application/json")]
 [Authorize]
-public class DocumentPermissionController : ControllerBase
+public class DocumentPermissionController : BaseApiController
 {
     private readonly IFineGrainedPermissionService _permissionService;
     private readonly ILogger<DocumentPermissionController> _logger;
@@ -42,16 +41,14 @@ public class DocumentPermissionController : ControllerBase
         [FromBody] GrantPermissionRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        var currentUser = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                         ?? User.FindFirstValue(ClaimTypes.Name)
-                         ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(currentUser))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
-            return Unauthorized(Result.Fail("User not authenticated"));
+            return Unauthorized(Result.Fail(MessageResources.Agent.UserNotAuthenticated));
         }
+
+        var currentUser = user.UserId;
 
         try
         {
@@ -68,12 +65,12 @@ public class DocumentPermissionController : ControllerBase
                 "User {GrantedBy} granted {PermissionType} permission to user {UserId} for document {DocumentId}",
                 currentUser, request.PermissionType, request.UserId, request.DocumentId);
 
-            return Ok(Result.Success("Permission granted successfully"));
+            return Ok(Result.Success(MessageResources.Permission.Granted));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to grant permission");
-            return BadRequest(Result.Fail($"Failed to grant permission: {ex.Message}"));
+            return BadRequest(Result.Fail($"{MessageResources.Permission.GrantFailed}: {ex.Message}"));
         }
     }
 
@@ -89,16 +86,14 @@ public class DocumentPermissionController : ControllerBase
         [FromBody] RevokePermissionRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        var currentUser = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                         ?? User.FindFirstValue(ClaimTypes.Name)
-                         ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(currentUser))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
-            return Unauthorized(Result.Fail("User not authenticated"));
+            return Unauthorized(Result.Fail(MessageResources.Agent.UserNotAuthenticated));
         }
+
+        var currentUser = user.UserId;
 
         try
         {
@@ -113,12 +108,12 @@ public class DocumentPermissionController : ControllerBase
                 "User {RevokedBy} revoked permission from user {UserId} for document {DocumentId}",
                 currentUser, request.UserId, request.DocumentId);
 
-            return Ok(Result.Success("Permission revoked successfully"));
+            return Ok(Result.Success(MessageResources.Permission.Revoked));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to revoke permission");
-            return BadRequest(Result.Fail($"Failed to revoke permission: {ex.Message}"));
+            return BadRequest(Result.Fail($"{MessageResources.Permission.RevokeFailed}: {ex.Message}"));
         }
     }
 
@@ -134,16 +129,14 @@ public class DocumentPermissionController : ControllerBase
         [FromBody] GrantRolePermissionRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        var currentUser = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                         ?? User.FindFirstValue(ClaimTypes.Name)
-                         ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(currentUser))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
-            return Unauthorized(Result.Fail("User not authenticated"));
+            return Unauthorized(Result.Fail(MessageResources.Agent.UserNotAuthenticated));
         }
+
+        var currentUser = user.UserId;
 
         try
         {
@@ -158,12 +151,12 @@ public class DocumentPermissionController : ControllerBase
                 "User {GrantedBy} granted {PermissionType} permission to role {RoleId} for document {DocumentId}",
                 currentUser, request.PermissionType, request.RoleId, request.DocumentId);
 
-            return Ok(Result.Success("Role permission granted successfully"));
+            return Ok(Result.Success(MessageResources.Permission.RoleGranted));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to grant role permission");
-            return BadRequest(Result.Fail($"Failed to grant role permission: {ex.Message}"));
+            return BadRequest(Result.Fail($"{MessageResources.Permission.GrantFailed}: {ex.Message}"));
         }
     }
 
@@ -179,16 +172,14 @@ public class DocumentPermissionController : ControllerBase
         [FromBody] GrantCategoryPermissionRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        var currentUser = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                         ?? User.FindFirstValue(ClaimTypes.Name)
-                         ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(currentUser))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
-            return Unauthorized(Result.Fail("User not authenticated"));
+            return Unauthorized(Result.Fail(MessageResources.Agent.UserNotAuthenticated));
         }
+
+        var currentUser = user.UserId;
 
         try
         {
@@ -203,12 +194,12 @@ public class DocumentPermissionController : ControllerBase
                 "User {GrantedBy} granted {PermissionType} permission to user {UserId} for category {CategoryId}",
                 currentUser, request.PermissionType, request.UserId, request.CategoryId);
 
-            return Ok(Result.Success("Category permission granted successfully"));
+            return Ok(Result.Success(MessageResources.Permission.CategoryGranted));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to grant category permission");
-            return BadRequest(Result.Fail($"Failed to grant category permission: {ex.Message}"));
+            return BadRequest(Result.Fail($"{MessageResources.Permission.GrantFailed}: {ex.Message}"));
         }
     }
 
@@ -247,7 +238,7 @@ public class DocumentPermissionController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve document permissions");
-            return BadRequest(Result.Fail($"Failed to retrieve document permissions: {ex.Message}"));
+            return BadRequest(Result.Fail($"{MessageResources.Permission.RetrieveFailed}: {ex.Message}"));
         }
     }
 

@@ -1,13 +1,13 @@
 ﻿using AI.EnterpriseRAG.Application.Authorization;
 using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
+using AI.EnterpriseRAG.Core.Resources;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
-[ApiController]
 [Route("api/[controller]")]
-public class AuthController : ControllerBase
+public class AuthController : BaseApiController
 {
     private readonly AuthService _authService;
 
@@ -21,7 +21,7 @@ public class AuthController : ControllerBase
     {
         // 参数验证
         if (!ModelState.IsValid)
-            return BadRequest(Result.Fail("参数验证失败"));
+            return BadRequest(Result.Fail(MessageResources.Common.ParameterError));
 
         var response = await _authService.LoginAsync(request);
         return Ok(Result<LoginResponse>.SuccessResult(response));
@@ -31,7 +31,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<Result<TokenResponse>>> Refresh([FromBody] RefreshTokenRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(Result.Fail("刷新令牌不能为空"));
+            return BadRequest(Result.Fail(MessageResources.Validation.Required("刷新令牌")));
 
         var response = await _authService.RefreshAccessTokenAsync(request.RefreshToken);
         return Ok(Result<TokenResponse>.SuccessResult(response));

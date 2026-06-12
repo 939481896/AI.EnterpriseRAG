@@ -228,9 +228,9 @@ export default function UserManagement() {
   ]
 
   return (
-    <div className="user-management">
-      <div className="user-management-header">
-        <Title level={3}>用户管理</Title>
+    <div className="page-container">
+      <div className="page-header">
+        <h3>用户管理</h3>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           添加用户
         </Button>

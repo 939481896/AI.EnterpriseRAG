@@ -35,14 +35,18 @@ public static class MessageResources
             ["user.notfound"] = "用户不存在",
             
             // ==================== Document Management ====================
-            ["document.upload.success"] = "文档上传成功",
+            ["document.upload.success"] = "文档上传成功，后台处理中",
             ["document.upload.failed"] = "文档上传失败",
-            ["document.upload.processing"] = "文档处理中",
+            ["document.upload.processing"] = "处理中",
             ["document.upload.duplicate"] = "文档已存在",
             ["document.delete.success"] = "文档已删除",
+            ["document.delete.failed"] = "删除文档失败",
             ["document.notfound"] = "文档不存在",
             ["document.parse.failed"] = "文档解析失败",
             ["document.permission.denied"] = "无权访问此文档",
+            ["document.reprocess.success"] = "文档已重新提交处理",
+            ["document.reprocess.failed"] = "重新处理文档失败",
+            ["document.collection.deleted"] = "集合清空成功",
             
             // ==================== Chat & Conversation ====================
             ["chat.send.failed"] = "发送失败，请重试",
@@ -51,6 +55,9 @@ public static class MessageResources
             ["chat.session.notfound"] = "会话不存在",
             ["chat.session.title_updated"] = "会话标题已更新",
             ["chat.message.empty"] = "消息内容不能为空",
+            ["chat.history.retrieved"] = "成功获取{0}条对话历史",
+            ["chat.history.failed"] = "获取对话历史失败",
+            ["chat.delete.failed"] = "删除对话失败",
             
             // ==================== Agent ====================
             ["agent.execution.started"] = "Agent 执行已启动",
@@ -58,6 +65,18 @@ public static class MessageResources
             ["agent.execution.failed"] = "Agent 执行失败",
             ["agent.tool.not_found"] = "工具不存在",
             ["agent.session.notfound"] = "Agent 会话不存在",
+            ["agent.user_not_authenticated"] = "用户未登录",
+
+            // ==================== Permission Management ====================
+            ["permission.granted"] = "权限授予成功",
+            ["permission.revoked"] = "权限撤销成功",
+            ["permission.grant_failed"] = "授予权限失败",
+            ["permission.revoke_failed"] = "撤销权限失败",
+            ["permission.role_granted"] = "角色权限授予成功",
+            ["permission.category_granted"] = "类别权限授予成功",
+            ["permission.retrieve_failed"] = "获取权限失败",
+            ["permission.token_revoked"] = "Token已吊销，用户将强制下线",
+            ["permission.user_permission_refreshed"] = "用户权限已刷新，下次接口自动重新加载",
             
             // ==================== Validation Messages ====================
             ["validation.required"] = "{0}不能为空",
@@ -111,14 +130,18 @@ public static class MessageResources
             ["user.notfound"] = "User not found",
             
             // ==================== Document Management ====================
-            ["document.upload.success"] = "Document uploaded successfully",
+            ["document.upload.success"] = "Document uploaded successfully, processing in background",
             ["document.upload.failed"] = "Document upload failed",
-            ["document.upload.processing"] = "Document processing",
+            ["document.upload.processing"] = "Processing",
             ["document.upload.duplicate"] = "Document already exists",
             ["document.delete.success"] = "Document deleted successfully",
+            ["document.delete.failed"] = "Failed to delete document",
             ["document.notfound"] = "Document not found",
             ["document.parse.failed"] = "Document parsing failed",
             ["document.permission.denied"] = "No permission to access this document",
+            ["document.reprocess.success"] = "Document reprocessing submitted",
+            ["document.reprocess.failed"] = "Failed to reprocess document",
+            ["document.collection.deleted"] = "Collection cleared successfully",
             
             // ==================== Chat & Conversation ====================
             ["chat.send.failed"] = "Send failed, please try again",
@@ -127,6 +150,9 @@ public static class MessageResources
             ["chat.session.notfound"] = "Session not found",
             ["chat.session.title_updated"] = "Session title updated",
             ["chat.message.empty"] = "Message content cannot be empty",
+            ["chat.history.retrieved"] = "Successfully retrieved {0} conversations",
+            ["chat.history.failed"] = "Failed to retrieve conversation history",
+            ["chat.delete.failed"] = "Failed to delete conversation",
             
             // ==================== Agent ====================
             ["agent.execution.started"] = "Agent execution started",
@@ -134,6 +160,18 @@ public static class MessageResources
             ["agent.execution.failed"] = "Agent execution failed",
             ["agent.tool.not_found"] = "Tool not found",
             ["agent.session.notfound"] = "Agent session not found",
+            ["agent.user_not_authenticated"] = "User not authenticated",
+
+            // ==================== Permission Management ====================
+            ["permission.granted"] = "Permission granted successfully",
+            ["permission.revoked"] = "Permission revoked successfully",
+            ["permission.grant_failed"] = "Failed to grant permission",
+            ["permission.revoke_failed"] = "Failed to revoke permission",
+            ["permission.role_granted"] = "Role permission granted successfully",
+            ["permission.category_granted"] = "Category permission granted successfully",
+            ["permission.retrieve_failed"] = "Failed to retrieve permissions",
+            ["permission.token_revoked"] = "Token has been revoked, user will be forced offline",
+            ["permission.user_permission_refreshed"] = "User permissions refreshed, will reload on next request",
             
             // ==================== Validation Messages ====================
             ["validation.required"] = "{0} is required",
@@ -277,6 +315,23 @@ public static class MessageResources
         public static string ExecutionFailed => Get("agent.execution.failed");
         public static string ToolNotFound => Get("agent.tool.not_found");
         public static string SessionNotFound => Get("agent.session.notfound");
+        public static string UserNotAuthenticated => Get("agent.user_not_authenticated");
+    }
+
+    /// <summary>
+    /// 权限管理消息
+    /// </summary>
+    public static class Permission
+    {
+        public static string Granted => Get("permission.granted");
+        public static string Revoked => Get("permission.revoked");
+        public static string GrantFailed => Get("permission.grant_failed");
+        public static string RevokeFailed => Get("permission.revoke_failed");
+        public static string RoleGranted => Get("permission.role_granted");
+        public static string CategoryGranted => Get("permission.category_granted");
+        public static string RetrieveFailed => Get("permission.retrieve_failed");
+        public static string TokenRevoked => Get("permission.token_revoked");
+        public static string UserPermissionRefreshed => Get("permission.user_permission_refreshed");
     }
 
     /// <summary>

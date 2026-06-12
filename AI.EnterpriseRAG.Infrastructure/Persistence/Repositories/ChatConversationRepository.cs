@@ -18,6 +18,27 @@ public class ChatConversationRepository : IChatConversationRepository
 
     public async Task<List<ChatConversation>> GetByUserIdAsync(string userId, int pageSize = 20)
     {
-        return await _dbContext.ChatConversations.AsNoTracking().Where(c=>c.UserId == userId).Take(pageSize).ToListAsync();
+        return await _dbContext.ChatConversations
+            .AsNoTracking()
+            .Where(c => c.UserId == userId)
+            .OrderByDescending(c => c.CreateTime)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<ChatConversation?> GetByIdAsync(Guid id)
+    {
+        return await _dbContext.ChatConversations
+            .FirstOrDefaultAsync(c => c.Id == id);
+    }
+
+    public async Task DeleteAsync(Guid id)
+    {
+        var conversation = await GetByIdAsync(id);
+        if (conversation != null)
+        {
+            _dbContext.ChatConversations.Remove(conversation);
+            await _dbContext.SaveChangesAsync();
+        }
     }
 }

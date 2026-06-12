@@ -136,11 +136,13 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="dashboard">
-      <Title level={3}>数据面板</Title>
+    <div className="page-container">
+      <div className="page-header">
+        <h3>数据面板</h3>
+      </div>
 
       {/* Statistics Cards */}
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} className="section">
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic

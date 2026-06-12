@@ -9,4 +9,6 @@ public interface IChatConversationRepository
 {
     Task AddAsync(ChatConversation conversation);
     Task<List<ChatConversation>> GetByUserIdAsync(string userId, int pageSize = 20);
+    Task<ChatConversation?> GetByIdAsync(Guid id);
+    Task DeleteAsync(Guid id);
 }

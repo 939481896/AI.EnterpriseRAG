@@ -13,11 +13,9 @@ namespace AI.EnterpriseRAG.WebAPI.Controllers;
 /// <summary>
 /// 用户管理接口
 /// </summary>
-[ApiController]
 [Route("api/[controller]")]
-[Produces("application/json")]
 [Authorize]
-public class UserController : ControllerBase
+public class UserController : BaseApiController
 {
     private readonly AppEnterpriseAiContext _context;
     private readonly IPasswordHasher<SysUser> _passwordHasher;
@@ -86,7 +84,7 @@ public class UserController : ControllerBase
             .FirstOrDefaultAsync();
 
         if (user == null)
-            return NotFound(Result.Fail("用户不存在"));
+            return NotFound(Result.Fail(MessageResources.User.NotFound));
 
         return Ok(Result<object>.SuccessResult(user));
     }

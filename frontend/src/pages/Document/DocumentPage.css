@@ -1,53 +1,75 @@
+/* ====================================
+   📄 Document Page - Specific Styles
+   ==================================== */
+
+/* 
+  Note: Common patterns now use global classes:
+  - .page-container for page padding
+  - .page-header for header layout
+  - .card for card components
+*/
+
 .document-page {
-  padding: 24px;
-}
-
-.document-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.document-header h3 {
-  margin: 0;
+  /* Additional document-specific styles only */
 }
 
 .upload-card {
-  margin-bottom: 24px;
+  margin-bottom: var(--section-spacing);
+  background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-body) 100%);
 }
 
 .upload-progress-container {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  margin-top: var(--space-base);
+  padding-top: var(--space-base);
+  border-top: 1px solid var(--border-light);
 }
 
 .upload-progress-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: var(--space-base);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  background-color: var(--bg-light);
+  border-radius: var(--radius-base);
+  transition: all var(--transition-base);
+}
+
+.upload-progress-item:hover {
+  background-color: var(--hover-bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .upload-progress-item:last-child {
   margin-bottom: 0;
 }
 
-/* Mobile responsive */
+.upload-progress-icon {
+  font-size: var(--font-size-xl);
+  color: var(--color-primary);
+}
+
+.upload-progress-success {
+  color: var(--color-success);
+}
+
+.upload-progress-error {
+  color: var(--color-error);
+}
+
+.document-filters {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-base);
+  flex-wrap: wrap;
+}
+
 @media (max-width: 768px) {
-  .document-header {
+  .document-filters {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
   }
 
-  .document-header .ant-space {
-    width: 100%;
-  }
-
-  .document-header .ant-input,
-  .document-header .ant-select {
+  .document-filters > * {
     width: 100% !important;
   }
 }

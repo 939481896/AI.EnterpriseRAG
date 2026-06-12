@@ -1,5 +1,6 @@
 ﻿using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
+using AI.EnterpriseRAG.Core.Resources;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
 using AI.EnterpriseRAG.WebAPI.Attribute;
 using Microsoft.AspNetCore.Authorization; // 🆕 添加授权
@@ -12,10 +13,8 @@ namespace AI.EnterpriseRAG.WebAPI.Controllers;
 /// <summary>
 /// 文档管理接口（企业级API规范 + 权限控制）
 /// </summary>
-[ApiController]
 [Route("api/[controller]")]
-[Produces("application/json")]
-public class DocumentController : ControllerBase
+public class DocumentController : BaseApiController
 {
     private readonly IDocumentUseCase _documentUseCase;
     private readonly ILogger<DocumentController> _logger;
@@ -27,44 +26,38 @@ public class DocumentController : ControllerBase
     }
 
     /// <summary>
-    /// 上传文档（强制登录）
+    /// 上传文档
     /// </summary>
     /// <param name="file">文档文件（支持pdf/txt/docx）</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>文档处理结果</returns>
     [HttpPost("upload")]
-    [Authorize] // 🆕 强制登录
-    [Permission("doc.upload")] // 🆕 权限验证
+    [Authorize] // 强制登录
+    [Permission("doc.upload")] // 权限验证
     [ProducesResponseType(typeof(Result<DocumentUploadResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UploadDocument(IFormFile file, CancellationToken cancellationToken = default)
     {
-        // 🆕 1. 获取当前登录用户（优先使用 Account）
-        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName) // 🆕 优先使用 UniqueName（Account）
-                     ?? User.FindFirstValue(ClaimTypes.Name)
-                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(userId))
+        // 1. 获取当前登录用户
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("用户未登录或Token无效");
-            return Unauthorized(Result.Fail("用户未登录"));
+            return Unauthorized(Result.Fail(MessageResources.Auth.Unauthorized));
         }
 
-        // 🆕 2. 获取租户ID（从Token Claims）
-        var tenantId = User.FindFirstValue("tid") // 🆕 TokenService 中使用 "tid"
-                      ?? User.FindFirstValue("tenant_id")
-                      ?? User.FindFirstValue("tenantId");
+        var userId = user.UserId;
+        var tenantId = user.TenantId;
 
         _logger.LogInformation("用户{UserId}（租户：{TenantId}）开始上传文档", userId, tenantId ?? "无");
 
         // 企业级文件校验
         if (file == null || file.Length == 0)
-            return BadRequest(Result.Fail("请上传有效文件"));
+            return BadRequest(Result.Fail(MessageResources.Validation.Required("文件")));
 
         if (file.Length > 100 * 1024 * 1024) // 100MB限制
-            return BadRequest(Result.Fail("文件大小不能超过100MB"));
+            return BadRequest(Result.Fail(MessageResources.Validation.FileTooLarge(100)));
 
         var fileName = Path.GetFileName(file.FileName);
         var fileType = Path.GetExtension(fileName).TrimStart('.').ToLower();
@@ -86,10 +79,10 @@ public class DocumentController : ControllerBase
         {
             DocumentId = documentId,
             DocumentName = fileName,
-            Status = "处理中"
+            Status = MessageResources.Document.Processing
         };
 
-        return Ok(Result<DocumentUploadResponseDto>.SuccessResult(response, "文档上传成功，后台处理中"));
+        return Ok(Result<DocumentUploadResponseDto>.SuccessResult(response, MessageResources.Document.UploadSuccess));
     }
 
     /// <summary>
@@ -102,12 +95,11 @@ public class DocumentController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                     ?? User.FindFirstValue(ClaimTypes.Name)
-                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
+            return Unauthorized(Result.Fail(MessageResources.Auth.Unauthorized));
 
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized(Result.Fail("用户未登录"));
+        var userId = user.UserId;
 
         var documents = await _documentUseCase.GetUserDocumentsAsync(
             userId,
@@ -118,6 +110,80 @@ public class DocumentController : ControllerBase
         return Ok(Result<object>.SuccessResult(documents));
     }
 
+    /// <summary>
+    /// 删除单个文档
+    /// </summary>
+    [HttpDelete("{documentId}")]
+    [Authorize]
+    [Permission("doc.delete")]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteDocument(Guid documentId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var user = GetCurrentUser();
+            if (user == null || !user.IsAuthenticated)
+                return Unauthorized(Result.Fail(MessageResources.Auth.Unauthorized));
+
+            var userId = user.UserId;
+
+            _logger.LogInformation("用户{UserId}开始删除文档：{DocumentId}", userId, documentId);
+
+            await _documentUseCase.DeleteByDocumentIdAsync(documentId, cancellationToken);
+
+            return Ok(Result.SuccessResult(MessageResources.Document.DeleteSuccess));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(Result.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除文档失败：{DocumentId}", documentId);
+            return BadRequest(Result.Fail($"{MessageResources.Get("document.delete.failed")}：{ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// 重新处理失败的文档
+    /// </summary>
+    [HttpPost("{documentId}/reprocess")]
+    [Authorize]
+    [Permission("doc.upload")]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(Result), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReprocessDocument(Guid documentId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var user = GetCurrentUser();
+            if (user == null || !user.IsAuthenticated)
+                return Unauthorized(Result.Fail(MessageResources.Auth.Unauthorized));
+
+            var userId = user.UserId;
+
+            _logger.LogInformation("用户{UserId}开始重新处理文档：{DocumentId}", userId, documentId);
+
+            await _documentUseCase.ReprocessDocumentAsync(documentId, null, cancellationToken);
+
+            return Ok(Result.SuccessResult(MessageResources.Get("document.reprocess.success")));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(Result.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "重新处理文档失败：{DocumentId}", documentId);
+            return BadRequest(Result.Fail($"{MessageResources.Get("document.reprocess.failed")}：{ex.Message}"));
+        }
+    }
+
     [HttpDelete("deleteCollection")]
     [Permission("doc.delete")]
     [ProducesResponseType(typeof(Result), StatusCodes.Status400BadRequest)]
@@ -125,6 +191,6 @@ public class DocumentController : ControllerBase
     {
         await _documentUseCase.DeleteByCollectionNameAsync(guid, cancellationToken);
 
-        return Ok();
+        return Ok(Result.SuccessResult(MessageResources.Get("document.collection.deleted")));
     }
 }

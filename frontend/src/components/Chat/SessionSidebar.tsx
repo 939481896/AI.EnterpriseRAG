@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, List, Empty, Dropdown, Typography, Spin } from 'antd'
+import { Button, Input, List, Empty, Dropdown, Typography, Spin, Modal } from 'antd'
 import {
   PlusOutlined,
   MessageOutlined,
@@ -8,9 +8,10 @@ import {
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import { useChatStore } from '@/store/chatStore'
-import { useDeleteSession } from '@/hooks/useChat'
+import { useDeleteSession, useUpdateSessionTitle } from '@/hooks/useChat'
 import type { ConversationSession } from '@/types/chat'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -21,6 +22,7 @@ dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 const { Text } = Typography
+const { confirm } = Modal
 
 interface SessionSidebarProps {
   sessions: ConversationSession[]
@@ -30,6 +32,7 @@ interface SessionSidebarProps {
 export default function SessionSidebar({ sessions, loading }: SessionSidebarProps) {
   const { currentSessionId, setCurrentSessionId, clearMessages } = useChatStore()
   const deleteSession = useDeleteSession()
+  const updateSessionTitle = useUpdateSessionTitle()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
@@ -39,18 +42,33 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
   }
 
   const handleSelectSession = (sessionId: string) => {
+    if (sessionId === currentSessionId) return
     setCurrentSessionId(sessionId)
-    // TODO: Load session messages
+    // Messages will be loaded by useSessionMessages hook in ChatPage
   }
 
-  const handleStartEdit = (session: ConversationSession) => {
+  const handleStartEdit = (session: ConversationSession, e: React.MouseEvent) => {
+    e.stopPropagation()
     setEditingId(session.id)
     setEditTitle(session.title)
   }
 
-  const handleSaveEdit = () => {
-    // TODO: Update session title via API
-    setEditingId(null)
+  const handleSaveEdit = async () => {
+    if (!editingId || !editTitle.trim()) {
+      setEditingId(null)
+      return
+    }
+
+    try {
+      await updateSessionTitle.mutateAsync({
+        sessionId: editingId,
+        title: editTitle.trim(),
+      })
+      setEditingId(null)
+      setEditTitle('')
+    } catch (error) {
+      console.error('Failed to update title:', error)
+    }
   }
 
   const handleCancelEdit = () => {
@@ -58,8 +76,25 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
     setEditTitle('')
   }
 
-  const handleDelete = (sessionId: string) => {
-    deleteSession.mutate(sessionId)
+  const handleDelete = (sessionId: string, sessionTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    confirm({
+      title: '确认删除会话？',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除会话"${sessionTitle}"吗？此操作不可恢复。`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk() {
+        deleteSession.mutate(sessionId)
+        // If deleting current session, clear it
+        if (sessionId === currentSessionId) {
+          setCurrentSessionId(null)
+          clearMessages()
+        }
+      },
+    })
   }
 
   const groupedSessions = {
@@ -124,14 +159,20 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
                   key: 'edit',
                   icon: <EditOutlined />,
                   label: '重命名',
-                  onClick: () => handleStartEdit(session),
+                  onClick: (info) => {
+                    info.domEvent.stopPropagation()
+                    handleStartEdit(session, info.domEvent)
+                  },
                 },
                 {
                   key: 'delete',
                   icon: <DeleteOutlined />,
                   label: '删除',
                   danger: true,
-                  onClick: () => handleDelete(session.id),
+                  onClick: (info) => {
+                    info.domEvent.stopPropagation()
+                    handleDelete(session.id, session.title, info.domEvent)
+                  },
                 },
               ],
             }}

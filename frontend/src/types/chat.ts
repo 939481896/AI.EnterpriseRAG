@@ -36,3 +36,10 @@ export interface StreamingChunk {
   content: string
   done: boolean
 }
+
+export interface ApiResponse<T = any> {
+  success: boolean
+  data?: T
+  message?: string
+  code?: number
+}

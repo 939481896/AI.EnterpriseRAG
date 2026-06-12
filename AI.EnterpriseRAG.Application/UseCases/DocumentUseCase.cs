@@ -1,4 +1,5 @@
-﻿using AI.EnterpriseRAG.Core.Exceptions;
+﻿using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
+using AI.EnterpriseRAG.Core.Exceptions;
 using AI.EnterpriseRAG.Core.Extensions;
 using AI.EnterpriseRAG.Core.Utils;
 using AI.EnterpriseRAG.Domain.Entities;
@@ -6,9 +7,9 @@ using AI.EnterpriseRAG.Domain.Enums;
 using AI.EnterpriseRAG.Domain.Interfaces.Repositories;
 using AI.EnterpriseRAG.Domain.Interfaces.Services;
 using AI.EnterpriseRAG.Domain.Interfaces.UseCases;
-using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
 using AI.EnterpriseRAG.Infrastructure.Persistence;
-using AI.EnterpriseRAG.Application.Services; // 新增：并发控制
+using AI.EnterpriseRAG.Infrastructure.Services.DocumentParsers;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Document = AI.EnterpriseRAG.Domain.Entities.Document;
@@ -23,7 +24,7 @@ public partial class DocumentUseCase : IDocumentUseCase
     private readonly IDocumentRepository _documentRepository;
     private readonly AppEnterpriseAiContext _context;
     private readonly IEnumerable<IDocumentParser> _documentParsers;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _serviceScopeFactory; // ✅ Changed from IServiceProvider to IServiceScopeFactory
     private readonly ILogger<DocumentUseCase> _logger;
     private readonly DocumentChunkingService _chunkingService;
     private readonly DocumentProcessingThrottler _throttler; // 新增：并发控制
@@ -35,14 +36,14 @@ public partial class DocumentUseCase : IDocumentUseCase
         IDocumentRepository documentRepository,
         AppEnterpriseAiContext context,
         IEnumerable<IDocumentParser> documentParsers,
-        IServiceProvider serviceProvider,
+        IServiceScopeFactory serviceScopeFactory, // ✅ Changed from IServiceProvider to IServiceScopeFactory
         ILogger<DocumentUseCase> logger,
         DocumentProcessingThrottler throttler) // 新增：注入并发控制
     {
         _documentRepository = documentRepository;
         _context = context;
         _documentParsers = documentParsers;
-        _serviceProvider = serviceProvider;
+        _serviceScopeFactory = serviceScopeFactory; // ✅ Changed
         _logger = logger;
         _chunkingService = new DocumentChunkingService();
         _throttler = throttler; // 新增
@@ -53,27 +54,73 @@ public partial class DocumentUseCase : IDocumentUseCase
 
     public async Task DeleteByCollectionNameAsync(Guid collectionId, CancellationToken cancellationToken = default)
     {
-        using var scope = _serviceProvider.CreateScope();
+        using var scope = _serviceScopeFactory.CreateScope(); // ✅ Use scope factory
         try
         {
-            var llmService = scope.ServiceProvider.GetRequiredService<ILlmService>();
             var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
-            var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-
             await vectorStore.ClearAllAsync(cancellationToken);
-
-            _logger.LogInformation("集合清空处理完成");
+            _logger.LogInformation("✅ 集合清空处理完成：{CollectionId}", collectionId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "集合清空失败");
+            _logger.LogError(ex, "❌ 集合清空失败：{CollectionId}", collectionId);
+            throw;
         }
-        throw new NotImplementedException();
     }
 
-    public Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        await DeleteDocumentInternalAsync(documentId, cancellationToken);
+    }
+
+    /// <summary>
+    /// 内部删除文档方法（删除文件、数据库记录、向量数据）
+    /// </summary>
+    private async Task DeleteDocumentInternalAsync(Guid documentId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🗑️ [删除文档] 开始删除文档：{DocumentId}", documentId);
+
+        try
+        {
+            // 1. Get document info
+            var document = await _documentRepository.GetByIdAsync(documentId);
+            if (document == null)
+            {
+                _logger.LogWarning("文档不存在：{DocumentId}", documentId);
+                return;
+            }
+
+            // 2. Delete physical file
+            var fileExtension = Path.GetExtension(document.Name);
+            var filePath = Path.Combine(_storagePath, $"{documentId}{fileExtension}");
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                _logger.LogInformation("✅ 文件删除成功：{FilePath}", filePath);
+            }
+
+            // 3. Delete vector data
+            using var scope = _serviceScopeFactory.CreateScope(); // ✅ Use scope factory
+            var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+            await vectorStore.DeleteByDocumentIdAsync(documentId, cancellationToken);
+            _logger.LogInformation("✅ 向量数据删除成功：{DocumentId}", documentId);
+
+            // 4. Delete chunks from database
+            await _documentRepository.DeleteChunksByDocumentIdAsync(documentId, cancellationToken);
+            _logger.LogInformation("✅ 分块数据删除成功：{DocumentId}", documentId);
+
+            // 5. Delete document record using context directly
+            _context.Documents.Remove(document);
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("✅ 文档记录删除成功：{DocumentId}", documentId);
+
+            _logger.LogInformation("✅ [删除文档] 文档删除完成：{DocumentId}", documentId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [删除文档] 删除文档失败：{DocumentId}", documentId);
+            throw;
+        }
     }
 
     public async Task<Guid> UploadAndProcessDocumentAsync(
@@ -125,12 +172,24 @@ public partial class DocumentUseCase : IDocumentUseCase
 
         if (existingDoc != null)
         {
-            _logger.LogInformation(
-                "检测到重复文件：{FileName}，哈希：{Hash}，已存在文档ID：{ExistingId}",
-                fileName, fileHash, existingDoc.Id);
+            // ✅ Only return existing if it's successfully processed
+            if (existingDoc.Status == DocumentStatus.Vectorized)
+            {
+                _logger.LogInformation(
+                    "检测到重复文件（已处理成功）：{FileName}，哈希：{Hash}，已存在文档ID：{ExistingId}",
+                    fileName, fileHash, existingDoc.Id);
+                return existingDoc.Id;
+            }
+            else
+            {
+                // ✅ Allow re-upload if previous attempt failed or is still processing
+                _logger.LogWarning(
+                    "检测到重复文件但状态为{Status}，将删除旧记录并重新上传：{FileName}",
+                    existingDoc.Status, fileName);
 
-            // 返回已有文档ID（避免重复处理）
-            return existingDoc.Id;
+                // Delete failed/incomplete document and allow re-upload
+                await DeleteDocumentInternalAsync(existingDoc.Id, cancellationToken);
+            }
         }
 
         // 5. 创建文档实体（包含权限信息和哈希）
@@ -172,7 +231,7 @@ public partial class DocumentUseCase : IDocumentUseCase
         {
             // 6.0 获取处理槽位（阻塞直到有空闲槽位）
             using var slot = await _throttler.AcquireAsync(document.Id);
-            using var scope = _serviceProvider.CreateScope();
+            using var scope = _serviceScopeFactory.CreateScope(); // ✅ Use scope factory
             try
             {
                 var llmService = scope.ServiceProvider.GetRequiredService<ILlmService>();
@@ -239,7 +298,7 @@ public partial class DocumentUseCase : IDocumentUseCase
                 // 6.3 初始化向量库
                 await vectorStore.InitAsync();
 
-                // 6.4 优化：批量向量化并入库（提升性能）
+                // 6.4 批量向量化并入库（提升性能）
                 var batchSize = 10; // 每批处理10个chunk
                 var startTime = DateTime.Now;
                 var processedCount = 0;
@@ -280,7 +339,7 @@ public partial class DocumentUseCase : IDocumentUseCase
                     _logger.LogInformation("文档{DocumentId}处理进度：{Processed}/{Total} ({Percent:F1}%)",
                         document.Id, processedCount, chunks.Count, (double)processedCount / chunks.Count * 100);
 
-                    // 优化：每批处理后强制GC（避免内存累积）
+                    // 每批处理后强制GC（避免内存累积）
                     if (i % (batchSize * 5) == 0)
                     {
                         GC.Collect(1, GCCollectionMode.Optimized);
@@ -308,6 +367,47 @@ public partial class DocumentUseCase : IDocumentUseCase
         }, CancellationToken.None);
 
         return document.Id;
+    }
+
+    /// <summary>
+    /// 获取用户的文档列表（分页）
+    /// </summary>
+    public async Task<object> GetUserDocumentsAsync(
+        string userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Documents
+            .Where(d => d.UploadedBy == userId)
+            .OrderByDescending(d => d.CreateTime);
+
+        var total = await query.CountAsync(cancellationToken);
+        var documents = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(d => new
+            {
+                d.Id,
+                d.Name,
+                d.FileType,
+                d.FileSize,
+                d.Status,
+                d.CreateTime,
+                d.CompleteTime,
+                d.UploadedBy,
+                d.IsPublic,
+                d.CategoryId
+            })
+            .ToListAsync(cancellationToken);
+
+        return new
+        {
+            items = documents,
+            total,
+            page,
+            pageSize
+        };
     }
 
     /// <summary>

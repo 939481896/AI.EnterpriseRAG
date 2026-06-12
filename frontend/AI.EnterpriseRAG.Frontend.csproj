@@ -24,6 +24,11 @@
     <None Include="public\**\*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include=".vscode\extensions.json" />
+    <Content Include=".vscode\settings.json" />
+  </ItemGroup>
+
   <Target Name="Build">
     <Message Text="Building frontend with npm..." Importance="high" />
     <Exec Command="npm install" />

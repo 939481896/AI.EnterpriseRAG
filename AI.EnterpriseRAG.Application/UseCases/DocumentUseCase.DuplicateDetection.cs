@@ -77,19 +77,33 @@ public partial class DocumentUseCase
                 uploadedBy, 
                 tenantId, 
                 cancellationToken);
-            
+
             if (existingDoc != null)
             {
-                _logger.LogInformation(
-                    "检测到重复文件：{FileName}，哈希：{Hash}，已存在文档ID：{ExistingId}",
-                    fileName, fileHash, existingDoc.Id);
-                
-                // 返回已有文档
-                return (
-                    existingDoc.Id, 
-                    IsNew: false, 
-                    Message: $"文件已存在（上传时间：{existingDoc.CreateTime:yyyy-MM-dd HH:mm}），无需重复上传"
-                );
+                // ✅ Only return existing if it's successfully processed
+                if (existingDoc.Status == DocumentStatus.Vectorized)
+                {
+                    _logger.LogInformation(
+                        "检测到重复文件（已处理成功）：{FileName}，哈希：{Hash}，已存在文档ID：{ExistingId}",
+                        fileName, fileHash, existingDoc.Id);
+
+                    // 返回已有文档
+                    return (
+                        existingDoc.Id, 
+                        IsNew: false, 
+                        Message: $"文件已存在（上传时间：{existingDoc.CreateTime:yyyy-MM-dd HH:mm}），无需重复上传"
+                    );
+                }
+                else
+                {
+                    // ✅ Allow re-upload if previous attempt failed or is still processing
+                    _logger.LogWarning(
+                        "检测到重复文件但状态为{Status}，将删除旧记录并重新上传：{FileName}",
+                        existingDoc.Status, fileName);
+
+                    // Delete failed/incomplete document using internal delete
+                    await DeleteDocumentInternalAsync(existingDoc.Id, cancellationToken);
+                }
             }
         }
         
@@ -133,7 +147,7 @@ public partial class DocumentUseCase
         _ = Task.Run(async () =>
         {
             using var slot = await _throttler.AcquireAsync(document.Id);
-            await ProcessDocumentInternalAsync(document, cancellationToken);
+            await ProcessDocumentInternalAsync(document.Id, CancellationToken.None); // ✅ Pass ID, not entity
         }, CancellationToken.None);
         
         return (
@@ -186,30 +200,113 @@ public partial class DocumentUseCase
     /// 文档内部处理逻辑（从原有代码抽取）
     /// </summary>
     private async Task ProcessDocumentInternalAsync(
-        Document document,
+        Guid documentId, // ✅ Changed from Document to Guid to avoid EF tracking issues
         CancellationToken cancellationToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        
+        using var scope = _serviceScopeFactory.CreateScope(); // ✅ Use scope factory
+
         try
         {
             var llmService = scope.ServiceProvider.GetRequiredService<ILlmService>();
             var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
             var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-            
-            // ... 原有处理逻辑（解析、分块、向量化、入库）
-            // 参考原 UploadAndProcessDocumentAsync 方法中的 Task.Run 内容
 
-            _logger.LogInformation("文档处理完成：{DocumentId}", document.Id);
+            // ✅ Retrieve document from new scope to avoid tracking issues
+            var document = await docRepo.GetByIdAsync(documentId);
+            if (document == null)
+            {
+                _logger.LogError("文档不存在：{DocumentId}", documentId);
+                return;
+            }
+
+            // Get file path
+            var fileExtension = Path.GetExtension(document.Name);
+            var filePath = Path.Combine(_storagePath, $"{document.Id}{fileExtension}");
+
+            if (!File.Exists(filePath))
+            {
+                throw new BusinessException(404, $"文档文件不存在：{filePath}");
+            }
+
+            // Parse document
+            _logger.LogInformation("🔄 [ProcessInternal] Starting document parsing: {DocumentId}", documentId);
+            using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+
+            var parser = _documentParsers.FirstOrDefault(p => p.SupportedFileType == document.FileType);
+            if (parser == null)
+            {
+                throw new BusinessException($"No parser found for file type: {document.FileType}");
+            }
+
+            var rawContent = await parser.ParseAsync(fileStream, cancellationToken);
+            var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
+
+            // 分块
+            var semanticChunks = _chunkingService.CreateSemanticChunks(
+                cleanContent,
+                document.Name,
+                document.FileType,
+                chunkSize: 250,
+                overlapSize: 50);
+
+            // ✅ Convert semantic chunks to DocumentChunk entities with proper DocumentId
+            var chunks = semanticChunks.Select((sc, index) => new DocumentChunk
+            {
+                DocumentId = document.Id, // ✅ Set DocumentId to avoid FK constraint error
+                Content = sc.Content,
+                Index = index,
+                TokenCount = TokenCounter.EstimateTokenCount(sc.Content),
+                SectionTitle = sc.SectionTitle,
+                SectionLevel = sc.SectionLevel
+            }).ToList();
+
+            _logger.LogInformation("🔄 [ProcessInternal] 分块完成，共{Count}块", chunks.Count);
+
+            // 向量化
+            await vectorStore.InitAsync();
+            var batchSize = 10;
+            for (int i = 0; i < chunks.Count; i += batchSize)
+            {
+                var batch = chunks.Skip(i).Take(batchSize).ToList();
+                var vectorTasks = batch.Select(c => llmService.EmbeddingAsync(c.Content));
+                var vectors = await Task.WhenAll(vectorTasks);
+
+                for (int j = 0; j < batch.Count; j++)
+                {
+                    await docRepo.AddChunkAsync(batch[j]);
+                    await vectorStore.InsertAsync(batch[j], vectors[j]);
+                }
+
+                _logger.LogInformation("🔄 [ProcessInternal] 进度：{Processed}/{Total}", 
+                    Math.Min(i + batchSize, chunks.Count), chunks.Count);
+            }
+
+            // 更新状态
+            document.Status = DocumentStatus.Vectorized;
+            document.CompleteTime = DateTime.Now;
+            await docRepo.UpdateAsync(document);
+
+            _logger.LogInformation("✅ [ProcessInternal] 文档处理完成：{DocumentId}", documentId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "文档处理失败：{DocumentId}", document.Id);
+            _logger.LogError(ex, "❌ [ProcessInternal] 文档处理失败：{DocumentId}", documentId);
 
-            var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-            document.Status = DocumentStatus.Failed;
-            document.CompleteTime = DateTime.Now;
-            await docRepo.UpdateAsync(document);
+            try
+            {
+                var docRepo = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
+                var document = await docRepo.GetByIdAsync(documentId);
+                if (document != null)
+                {
+                    document.Status = DocumentStatus.Failed;
+                    document.CompleteTime = DateTime.Now;
+                    await docRepo.UpdateAsync(document);
+                }
+            }
+            catch (Exception updateEx)
+            {
+                _logger.LogError(updateEx, "Failed to update document status to Failed for {DocumentId}", documentId);
+            }
         }
     }
 
@@ -259,14 +356,19 @@ public partial class DocumentUseCase
             _logger.LogInformation("🧹 [重新处理] 清理旧数据：{DocumentId}", documentId);
             await _documentRepository.DeleteChunksByDocumentIdAsync(documentId, cancellationToken);
 
-            using var scope = _serviceProvider.CreateScope();
-            var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
-            await vectorStore.DeleteByDocumentIdAsync(documentId, cancellationToken);
+            using (var scope = _serviceScopeFactory.CreateScope()) // ✅ Use scope factory
+            {
+                var vectorStore = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+                await vectorStore.DeleteByDocumentIdAsync(documentId, cancellationToken);
+            }
 
             // 5. 重新提交到后台处理队列
             _logger.LogInformation("📤 [重新处理] 提交后台任务：{DocumentId}", documentId);
 
-            // 重新读取文件流并处理
+            // Capture necessary data before Task.Run
+            var documentIdCopy = document.Id;
+            var documentFileType = document.FileType;
+            var documentName = document.Name;
             var fileExtension = Path.GetExtension(document.Name);
             var storagePath = Path.Combine(_storagePath, $"{document.Id}{fileExtension}");
 
@@ -278,31 +380,34 @@ public partial class DocumentUseCase
             // 异步提交后台处理（不等待）
             _ = Task.Run(async () =>
             {
-                _logger.LogInformation("🔄 [Reprocess] Task.Run started for document: {DocumentId}", document.Id);
-
-                using var processingSlot = await _throttler.AcquireAsync(document.Id);
-                _logger.LogInformation("🔄 [Reprocess] Slot acquired, creating scope for: {DocumentId}", document.Id);
-
-                using var processingScope = _serviceProvider.CreateScope();
-                _logger.LogInformation("🔄 [Reprocess] Scope created, resolving services for: {DocumentId}", document.Id);
+                IDisposable? processingSlot = null;
+                IServiceScope? processingScope = null;
 
                 try
                 {
+                    _logger.LogInformation("🔄 [Reprocess] Task.Run started for document: {DocumentId}", documentIdCopy);
+
+                    processingSlot = await _throttler.AcquireAsync(documentIdCopy);
+                    _logger.LogInformation("🔄 [Reprocess] Slot acquired for: {DocumentId}", documentIdCopy);
+
+                    processingScope = _serviceScopeFactory.CreateScope(); // ✅ Use scope factory
+                    _logger.LogInformation("🔄 [Reprocess] Scope created for: {DocumentId}", documentIdCopy);
+
                     var llmService = processingScope.ServiceProvider.GetRequiredService<ILlmService>();
                     var vectorStore = processingScope.ServiceProvider.GetRequiredService<IVectorStore>();
                     var docRepo = processingScope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-                    _logger.LogInformation("🔄 [Reprocess] Services resolved for: {DocumentId}", document.Id);
+                    _logger.LogInformation("🔄 [Reprocess] Services resolved for: {DocumentId}", documentIdCopy);
 
-                    _logger.LogInformation("🔄 [Reprocess] Starting document parsing: {DocumentId}", document.Id);
+                    _logger.LogInformation("🔄 [Reprocess] Starting document parsing: {DocumentId}", documentIdCopy);
 
                     // ✅ Use .NET native parser (replaced Unstructured)
                     using var fileReadStream = new FileStream(storagePath, FileMode.Open, FileAccess.Read);
 
                     // Get appropriate parser for file type
-                    var parser = _documentParsers.FirstOrDefault(p => p.SupportedFileType == document.FileType);
+                    var parser = _documentParsers.FirstOrDefault(p => p.SupportedFileType == documentFileType);
                     if (parser == null)
                     {
-                        throw new BusinessException($"No parser found for file type: {document.FileType}");
+                        throw new BusinessException($"No parser found for file type: {documentFileType}");
                     }
 
                     // Parse document - use CancellationToken.None for background processing
@@ -310,20 +415,31 @@ public partial class DocumentUseCase
                     var cleanContent = DocumentCleaner.CleanDocumentText(rawContent);
 
                     // 分块
-                    var customChunks = _chunkingService.CreateSemanticChunks(
+                    var semanticChunks = _chunkingService.CreateSemanticChunks(
                         cleanContent,
-                        document.Name,
-                        document.FileType,
+                        documentName,
+                        documentFileType,
                         chunkSize: 250,
                         overlapSize: 50);
 
-                    _logger.LogInformation("🔄 [重新处理] 分块完成，共{Count}块", customChunks.Count);
+                    // ✅ Convert semantic chunks to DocumentChunk entities with proper DocumentId
+                    var chunks = semanticChunks.Select((sc, index) => new DocumentChunk
+                    {
+                        DocumentId = documentIdCopy, // ✅ Set DocumentId to avoid FK constraint error
+                        Content = sc.Content,
+                        Index = index,
+                        TokenCount = TokenCounter.EstimateTokenCount(sc.Content),
+                        SectionTitle = sc.SectionTitle,
+                        SectionLevel = sc.SectionLevel
+                    }).ToList();
+
+                    _logger.LogInformation("🔄 [重新处理] 分块完成，共{Count}块", chunks.Count);
 
                     // 向量化
                     var batchSize = 10;
-                    for (int i = 0; i < customChunks.Count; i += batchSize)
+                    for (int i = 0; i < chunks.Count; i += batchSize)
                     {
-                        var batch = customChunks.Skip(i).Take(batchSize).ToList();
+                        var batch = chunks.Skip(i).Take(batchSize).ToList();
                         var vectorTasks = batch.Select(c => llmService.EmbeddingAsync(c.Content));
                         var vectors = await Task.WhenAll(vectorTasks);
 
@@ -334,24 +450,43 @@ public partial class DocumentUseCase
                         }
 
                         _logger.LogInformation("🔄 [重新处理] 进度：{Processed}/{Total}", 
-                            Math.Min(i + batchSize, customChunks.Count), customChunks.Count);
+                            Math.Min(i + batchSize, chunks.Count), chunks.Count);
                     }
 
                     // 更新状态
-                    document.Status = DocumentStatus.Vectorized;
-                    document.CompleteTime = DateTime.Now;
-                    await docRepo.UpdateAsync(document);
+                    var documentToUpdate = await docRepo.GetByIdAsync(documentIdCopy);
+                    documentToUpdate.Status = DocumentStatus.Vectorized;
+                    documentToUpdate.CompleteTime = DateTime.Now;
+                    await docRepo.UpdateAsync(documentToUpdate);
 
-                    _logger.LogInformation("✅ [重新处理] 文档处理完成：{DocumentId}", document.Id);
+                    _logger.LogInformation("✅ [重新处理] 文档处理完成：{DocumentId}", documentIdCopy);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ [重新处理] 文档处理失败：{DocumentId}", document.Id);
+                    _logger.LogError(ex, "❌ [重新处理] 文档处理失败：{DocumentId} | Error: {Message} | StackTrace: {StackTrace}", 
+                        documentIdCopy, ex.Message, ex.StackTrace);
 
-                    var docRepo = processingScope.ServiceProvider.GetRequiredService<IDocumentRepository>();
-                    document.Status = DocumentStatus.Failed;
-                    document.CompleteTime = DateTime.Now;
-                    await docRepo.UpdateAsync(document);
+                    try
+                    {
+                        var docRepo = processingScope?.ServiceProvider.GetRequiredService<IDocumentRepository>();
+                        if (docRepo != null)
+                        {
+                            var documentToUpdate = await docRepo.GetByIdAsync(documentIdCopy);
+                            documentToUpdate.Status = DocumentStatus.Failed;
+                            documentToUpdate.CompleteTime = DateTime.Now;
+                            await docRepo.UpdateAsync(documentToUpdate);
+                        }
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "Failed to update document status to Failed for {DocumentId}", documentIdCopy);
+                    }
+                }
+                finally
+                {
+                    processingScope?.Dispose();
+                    processingSlot?.Dispose();
+                    _logger.LogInformation("🔄 [Reprocess] Cleanup complete for: {DocumentId}", documentIdCopy);
                 }
             }, CancellationToken.None); // ✅ Use None to prevent premature cancellation
 

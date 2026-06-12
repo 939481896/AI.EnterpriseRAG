@@ -5,6 +5,8 @@ using AI.EnterpriseRAG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
@@ -32,10 +34,17 @@ public class ChatSessionController : ControllerBase
     /// 获取用户会话列表
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetSessions(
-        [FromQuery] string userId,
-        [FromQuery] int limit = 20)
+    public async Task<IActionResult> GetSessions([FromQuery] int limit = 20)
     {
+        // 从Token获取用户ID（更安全）
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? User.FindFirstValue(ClaimTypes.Name)
+                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(Result.Fail("用户未登录"));
+
         var sessions = await _context.ConversationSessions
             .Where(s => s.UserId == userId && s.IsActive)
             .OrderByDescending(s => s.LastInteractionAt)
@@ -144,10 +153,19 @@ public class ChatSessionController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateSession([FromBody] CreateSessionDto request)
     {
+        // 从Token获取用户ID（更安全）
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+                     ?? User.FindFirstValue(ClaimTypes.Name)
+                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(Result.Fail("用户未登录"));
+
         var session = new ConversationSession
         {
             Id = Guid.NewGuid(),
-            UserId = request.UserId,
+            UserId = userId,
             Title = request.Title ?? "新会话",
             CreatedAt = DateTime.Now,
             LastInteractionAt = DateTime.Now,
@@ -176,6 +194,5 @@ public class UpdateSessionTitleDto
 
 public class CreateSessionDto
 {
-    public string UserId { get; set; } = string.Empty;
     public string? Title { get; set; }
 }

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Enterprise RAG - API测试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        h2 { color: #666; font-size: 18px; margin: 30px 0 15px; border-bottom: 2px solid #409eff; padding-bottom: 8px; }
+        .section {
+            margin-bottom: 40px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #409eff;
+        }
+        button {
+            padding: 10px 20px;
+            background: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover { background: #66b1ff; }
+        button.danger { background: #f56c6c; }
+        button.danger:hover { background: #f78989; }
+        .result {
+            background: #f4f4f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .conversation-item {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #409eff;
+        }
+        .conversation-item .question {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .conversation-item .answer {
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .conversation-item .meta {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status.success { background: #e1f3d8; color: #67c23a; }
+        .status.error { background: #fde2e2; color: #f56c6c; }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Enterprise RAG - API测试工具</h1>
+        <p style="color: #909399; margin-bottom: 30px;">用于测试文档管理和对话历史API</p>
+
+        <!-- Token设置 -->
+        <div class="section">
+            <h2>🔑 认证设置</h2>
+            <div class="form-group">
+                <label>Authorization Token (登录后获取)</label>
+                <input type="text" id="token" placeholder="请输入Bearer Token">
+            </div>
+            <button onclick="saveToken()">保存Token</button>
+            <button onclick="testToken()">测试Token</button>
+        </div>
+
+        <!-- 对话历史 -->
+        <div class="section">
+            <h2>💬 对话历史管理</h2>
+            <div class="form-group">
+                <label>每页数量</label>
+                <input type="number" id="pageSize" value="20" min="1" max="100">
+            </div>
+            <button onclick="loadChatHistory()">获取对话历史</button>
+            <button onclick="clearHistory()" class="danger">清空显示</button>
+            
+            <div id="chatHistoryResult" class="result" style="display: none;"></div>
+            <div id="conversationList"></div>
+        </div>
+
+        <!-- 文档删除 -->
+        <div class="section">
+            <h2>📄 文档管理</h2>
+            <div class="form-group">
+                <label>文档ID (要删除的文档ID)</label>
+                <input type="text" id="documentId" placeholder="输入文档GUID">
+            </div>
+            <button onclick="deleteDocument()" class="danger">删除文档</button>
+            <button onclick="reprocessDocument()">重新处理文档</button>
+            
+            <div id="documentResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- API日志 -->
+        <div class="section">
+            <h2>📋 API日志</h2>
+            <div id="apiLog" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';  // 修改为你的API地址
+
+        // 日志记录
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('apiLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : '#333';
+            logDiv.innerHTML = `<span style="color: ${color}">[${timestamp}] ${message}</span>\n` + logDiv.innerHTML;
+        }
+
+        // 获取Token
+        function getToken() {
+            let token = document.getElementById('token').value.trim();
+            if (!token) {
+                token = localStorage.getItem('apiToken');
+                if (token) {
+                    document.getElementById('token').value = token;
+                }
+            }
+            return token;
+        }
+
+        // 保存Token
+        function saveToken() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) {
+                alert('请输入Token');
+                return;
+            }
+            localStorage.setItem('apiToken', token);
+            log('✅ Token已保存', 'success');
+        }
+
+        // 测试Token
+        async function testToken() {
+            const token = getToken();
+            if (!token) {
+                alert('请先输入Token');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/Chat/history?pageSize=1`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    log('✅ Token有效', 'success');
+                    alert('Token有效！');
+                } else if (response.status === 401) {
+                    log('❌ Token无效或已过期', 'error');
+                    alert('Token无效或已过期');
+                } else {
+                    log(`⚠️ 测试失败: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 网络错误: ${error.message}`, 'error');
+                alert('网络错误: ' + error.message);
+            }
+        }
+
+        // 获取对话历史
+        async function loadChatHistory() {
+            const token = getToken();
+            if (!token) {
+                alert('请先设置Token');
+                return;
+            }
+
+            const pageSize = document.getElementById('pageSize').value;
+            log(`📡 正在获取对话历史 (pageSize=${pageSize})...`);
+
+            try {
+                const response = await fetch(`${API_BASE}/Chat/history?pageSize=${pageSize}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('chatHistoryResult');
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+
+                if (result.success) {
+                    log(`✅ 成功获取${result.data.length}条对话记录`, 'success');
+                    displayConversations(result.data);
+                } else {
+                    log(`❌ 获取失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 请求失败: ${error.message}`, 'error');
+                alert('请求失败: ' + error.message);
+            }
+        }
+
+        // 显示对话列表
+        function displayConversations(conversations) {
+            const listDiv = document.getElementById('conversationList');
+            
+            if (!conversations || conversations.length === 0) {
+                listDiv.innerHTML = '<div class="empty">暂无对话历史</div>';
+                return;
+            }
+
+            listDiv.innerHTML = conversations.map(conv => `
+                <div class="conversation-item">
+                    <div class="question">❓ ${escapeHtml(conv.question)}</div>
+                    <div class="answer">💡 ${escapeHtml(conv.answer)}</div>
+                    <div class="meta">
+                        <span>🕒 ${formatDate(conv.createTime)}</span>
+                        <button onclick="deleteConversation('${conv.id}')" class="danger" style="padding: 5px 10px;">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 删除对话
+        async function deleteConversation(conversationId) {
+            if (!confirm('确定删除这条对话吗？')) return;
+
+            const token = getToken();
+            log(`🗑️ 正在删除对话: ${conversationId}...`);
+
+            try {
+                const response = await fetch(`${API_BASE}/Chat/history/${conversationId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ 对话删除成功`, 'success');
+                    // 刷新列表
+                    await loadChatHistory();
+                } else {
+                    log(`❌ 删除失败: ${result.message}`, 'error');
+                    alert('删除失败: ' + result.message);
+                }
+            } catch (error) {
+                log(`❌ 请求失败: ${error.message}`, 'error');
+                alert('请求失败: ' + error.message);
+            }
+        }
+
+        // 删除文档
+        async function deleteDocument() {
+            const token = getToken();
+            const documentId = document.getElementById('documentId').value.trim();
+            
+            if (!documentId) {
+                alert('请输入文档ID');
+                return;
+            }
+
+            if (!confirm('确定删除这个文档吗？\n删除后将无法恢复！')) return;
+
+            log(`🗑️ 正在删除文档: ${documentId}...`);
+
+            try {
+                const response = await fetch(`${API_BASE}/Document/${documentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('documentResult');
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+
+                if (result.success) {
+                    log(`✅ 文档删除成功`, 'success');
+                    alert('文档删除成功！');
+                } else {
+                    log(`❌ 删除失败: ${result.message}`, 'error');
+                    alert('删除失败: ' + result.message);
+                }
+            } catch (error) {
+                log(`❌ 请求失败: ${error.message}`, 'error');
+                alert('请求失败: ' + error.message);
+            }
+        }
+
+        // 重新处理文档
+        async function reprocessDocument() {
+            const token = getToken();
+            const documentId = document.getElementById('documentId').value.trim();
+            
+            if (!documentId) {
+                alert('请输入文档ID');
+                return;
+            }
+
+            if (!confirm('确定重新处理这个文档吗？')) return;
+
+            log(`🔄 正在重新处理文档: ${documentId}...`);
+
+            try {
+                const response = await fetch(`${API_BASE}/Document/${documentId}/reprocess`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('documentResult');
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+
+                if (result.success) {
+                    log(`✅ 文档已重新提交处理`, 'success');
+                    alert('文档已重新提交处理！');
+                } else {
+                    log(`❌ 处理失败: ${result.message}`, 'error');
+                    alert('处理失败: ' + result.message);
+                }
+            } catch (error) {
+                log(`❌ 请求失败: ${error.message}`, 'error');
+                alert('请求失败: ' + error.message);
+            }
+        }
+
+        // 清空历史显示
+        function clearHistory() {
+            document.getElementById('conversationList').innerHTML = '';
+            document.getElementById('chatHistoryResult').style.display = 'none';
+            log('🧹 已清空显示', 'success');
+        }
+
+        // 工具函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+
+        // 页面加载时自动加载Token
+        window.onload = function() {
+            const token = localStorage.getItem('apiToken');
+            if (token) {
+                document.getElementById('token').value = token;
+                log('✅ 已自动加载保存的Token', 'success');
+            }
+            log('📌 API测试工具已就绪');
+        };
+    </script>
+</body>
+</html>

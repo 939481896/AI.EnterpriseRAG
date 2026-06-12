@@ -1,13 +1,13 @@
-﻿using AI.EnterpriseRAG.Infrastructure.Authorization;
+﻿using AI.EnterpriseRAG.Core.Resources;
+using AI.EnterpriseRAG.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace AI.EnterpriseRAG.WebAPI.Controllers;
 
-[ApiController]
 [Route("api/permission")]
-public class PermissionController : ControllerBase
+public class PermissionController : BaseApiController
 {
     private readonly IMemoryCache _cache;
 
@@ -23,7 +23,7 @@ public class PermissionController : ControllerBase
     public  IActionResult RevokeToken([FromQuery] string token)
     {
         _cache.Set($"token:blacklist:{token}", "true", TimeSpan.FromMinutes(30));
-        return Ok("Token已吊销，用户将强制下线");
+        return Ok(MessageResources.Permission.TokenRevoked);
     }
 
     /// <summary>
@@ -33,6 +33,6 @@ public class PermissionController : ControllerBase
     public  IActionResult RefreshPerm([FromQuery] long userId)
     {
         _cache.Remove($"user:perm:{userId}");
-        return Ok("用户权限已刷新，下次接口自动重新加载");
+        return Ok(MessageResources.Permission.UserPermissionRefreshed);
     }
 }

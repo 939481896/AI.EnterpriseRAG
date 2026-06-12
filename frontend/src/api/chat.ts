@@ -19,9 +19,9 @@ export const chatApi = {
   /**
    * Get user's conversation sessions
    */
-  getSessions: async (userId: string, limit = 20): Promise<ApiResponse<ConversationSession[]>> => {
+  getSessions: async (limit = 20): Promise<ApiResponse<ConversationSession[]>> => {
     return apiClient.get('/api/chat/sessions', {
-      params: { userId, limit },
+      params: { limit },
     })
   },
 
@@ -39,7 +39,6 @@ export const chatApi = {
    * Create new session
    */
   createSession: async (data: {
-    userId: string
     title?: string
   }): Promise<ApiResponse<{ id: string; userId: string; title: string; createdAt: string }>> => {
     return apiClient.post('/api/chat/sessions', data)

@@ -5,7 +5,6 @@ import { useSendMessage, useSessions, useSessionMessages } from '@/hooks/useChat
 import { useChatStore } from '@/store/chatStore'
 import ChatMessage from '@/components/Chat/ChatMessage'
 import SessionSidebar from '@/components/Chat/SessionSidebar'
-import './ChatPage.css'
 
 const { Content, Sider } = Layout
 const { TextArea } = Input
@@ -44,35 +43,26 @@ export default function ChatPage() {
   }
 
   return (
-    <Layout style={{ height: 'calc(100vh - 112px)', background: '#fff' }}>
+    <Layout className="h-[calc(100vh-112px)] bg-white">
+      {/* Sidebar */}
       <Sider
         width={280}
         theme="light"
-        style={{
-          borderRight: '1px solid #f0f0f0',
-          height: '100%',
-          overflow: 'hidden',
-        }}
+        className="border-r border-gray-200 h-full overflow-hidden"
       >
         <SessionSidebar sessions={sessions || []} loading={sessionsLoading} />
       </Sider>
 
       <Layout>
-        <Content
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-          }}
-        >
+        <Content className="flex flex-col h-full">
           {/* Header */}
-          <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0f0f0' }}>
+          <div className="px-6 py-3 border-b border-gray-200">
             <Space split={<Divider type="vertical" />}>
-              <span style={{ fontWeight: 500 }}>智能问答</span>
+              <span className="font-medium">智能问答</span>
               <Select
                 value={ragVersion}
                 onChange={setRagVersion}
-                style={{ width: 120 }}
+                className="w-32"
                 size="small"
                 options={[
                   { value: 'v0', label: 'RAG V0 (基础版)' },
@@ -82,24 +72,17 @@ export default function ChatPage() {
             </Space>
           </div>
 
-          {/* Messages */}
-          <div
-            className="messages-container"
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '24px',
-            }}
-          >
+          {/* Messages Container */}
+          <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
             {loadingMessages ? (
-              <div style={{ textAlign: 'center', padding: 60 }}>
+              <div className="text-center py-16">
                 <Spin size="large" tip="加载会话记录中..." />
               </div>
             ) : messages.length === 0 ? (
               <Empty
-                image={<RobotOutlined style={{ fontSize: 64, color: '#1890ff' }} />}
+                image={<RobotOutlined className="text-6xl text-primary" />}
                 description="暂无对话记录，开始提问吧！"
-                style={{ marginTop: '20%' }}
+                className="mt-[20%]"
               />
             ) : (
               <>
@@ -107,7 +90,7 @@ export default function ChatPage() {
                   <ChatMessage key={message.id} message={message} />
                 ))}
                 {isStreaming && (
-                  <div style={{ textAlign: 'center', padding: 20 }}>
+                  <div className="text-center py-5">
                     <Spin tip="AI 正在思考..." />
                   </div>
                 )}
@@ -116,22 +99,16 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Input */}
-          <div
-            style={{
-              padding: '16px 24px',
-              borderTop: '1px solid #f0f0f0',
-              background: '#fafafa',
-            }}
-          >
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          {/* Input Area */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex gap-2 items-end">
               <TextArea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="输入问题... (Shift+Enter 换行，Enter 发送)"
                 autoSize={{ minRows: 1, maxRows: 4 }}
-                style={{ flex: 1 }}
+                className="flex-1"
                 disabled={isStreaming || sendMessage.isPending}
               />
               <Button
@@ -145,7 +122,7 @@ export default function ChatPage() {
                 发送
               </Button>
             </div>
-            <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 12 }}>
+            <div className="mt-2 text-gray-500 text-xs">
               💡 提示：本系统基于文档知识库回答问题，回答仅供参考
             </div>
           </div>

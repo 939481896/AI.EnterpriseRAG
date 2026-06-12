@@ -1,5 +1,6 @@
 using AI.EnterpriseRAG.Application.Dtos;
 using AI.EnterpriseRAG.Core.Models;
+using AI.EnterpriseRAG.Core.Resources;
 using AI.EnterpriseRAG.Domain.Interfaces.Agent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,11 +13,9 @@ namespace AI.EnterpriseRAG.WebAPI.Controllers;
 /// <summary>
 /// Agent controller
 /// </summary>
-[ApiController]
 [Route("api/[controller]")]
-[Produces("application/json")]
 [Authorize]
-public class AgentController : ControllerBase
+public class AgentController : BaseApiController
 {
     private readonly IAgentOrchestrator _agentOrchestrator;
     private readonly ILogger<AgentController> _logger;
@@ -40,23 +39,17 @@ public class AgentController : ControllerBase
         [FromBody] AgentExecuteRequestDto request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                     ?? User.FindFirstValue(ClaimTypes.Name)
-                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(userId))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
             Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await Response.WriteAsync("event: error\ndata: {\"message\":\"User not authenticated\"}\n\n", cancellationToken);
+            await Response.WriteAsync($"event: error\ndata: {{\"message\":\"{MessageResources.Agent.UserNotAuthenticated}\"}}\n\n", cancellationToken);
             return;
         }
 
-        var tenantId = User.FindFirstValue("tid")
-                      ?? User.FindFirstValue("tenant_id")
-                      ?? User.FindFirstValue("tenantId")
-                      ?? "default";
+        var userId = user.UserId;
+        var tenantId = user.TenantId;
 
         _logger.LogInformation(
             "User {UserId} started Agent task: {Input}",
@@ -87,13 +80,13 @@ public class AgentController : ControllerBase
             }
 
             // Send completion marker
-            await Response.WriteAsync("event: done\ndata: {\"status\":\"completed\"}\n\n", cancellationToken);
+            await Response.WriteAsync($"event: done\ndata: {{\"status\":\"completed\",\"message\":\"{MessageResources.Agent.ExecutionCompleted}\"}}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Agent execution error");
-            var errorData = $"event: error\ndata: {{\"message\":\"{ex.Message}\"}}\n\n";
+            var errorData = $"event: error\ndata: {{\"message\":\"{MessageResources.Agent.ExecutionFailed}: {ex.Message}\"}}\n\n";
             await Response.WriteAsync(errorData, cancellationToken);
         }
     }
@@ -109,21 +102,15 @@ public class AgentController : ControllerBase
         [FromBody] AgentExecuteRequestDto request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
-                     ?? User.FindFirstValue(ClaimTypes.Name)
-                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-
-        if (string.IsNullOrEmpty(userId))
+        var user = GetCurrentUser();
+        if (user == null || !user.IsAuthenticated)
         {
             _logger.LogWarning("User not authenticated");
-            return Unauthorized(Result.Fail("User not authenticated"));
+            return Unauthorized(Result.Fail(MessageResources.Agent.UserNotAuthenticated));
         }
 
-        var tenantId = User.FindFirstValue("tid")
-                      ?? User.FindFirstValue("tenant_id")
-                      ?? User.FindFirstValue("tenantId")
-                      ?? "default";
+        var userId = user.UserId;
+        var tenantId = user.TenantId;
 
         var steps = new List<AgentStepEvent>();
         string? finalAnswer = null;
@@ -164,12 +151,12 @@ public class AgentController : ControllerBase
                 TotalSteps = steps.Count
             };
 
-            return Ok(Result<AgentExecuteResponseDto>.SuccessResult(response, "Agent execution completed"));
+            return Ok(Result<AgentExecuteResponseDto>.SuccessResult(response, MessageResources.Agent.ExecutionCompleted));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Agent execution failed");
-            return StatusCode(500, Result.Fail($"Agent execution failed: {ex.Message}", 500));
+            return StatusCode(500, Result.Fail($"{MessageResources.Agent.ExecutionFailed}: {ex.Message}", 500));
         }
     }
 
@@ -187,7 +174,7 @@ public class AgentController : ControllerBase
             var session = await _agentOrchestrator.GetSessionAsync(sessionId, cancellationToken);
 
             if (session == null)
-                return NotFound(Result.Fail("Session not found", 404));
+                return NotFound(Result.Fail(MessageResources.Agent.SessionNotFound, 404));
 
             var response = new AgentSessionResponseDto
             {

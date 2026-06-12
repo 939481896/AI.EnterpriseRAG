@@ -303,6 +303,73 @@ public partial class ChatUseCase : IChatUseCase
         }
     }
 
+    /// <summary>
+    /// 获取用户的对话历史
+    /// </summary>
+    public async Task<List<object>> GetUserConversationsAsync(
+        string userId,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📋 [对话历史] 获取用户对话历史：{UserId}，数量：{PageSize}", userId, pageSize);
+
+        try
+        {
+            var conversations = await _chatRepo.GetByUserIdAsync(userId, pageSize);
+
+            var result = conversations.Select(c => new
+            {
+                c.Id,
+                c.Question,
+                c.Answer,
+                c.CreateTime,
+                c.UserId
+            }).ToList<object>();
+
+            _logger.LogInformation("✅ [对话历史] 成功获取{Count}条对话记录", result.Count);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [对话历史] 获取对话历史失败：{UserId}", userId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 删除对话记录
+    /// </summary>
+    public async Task DeleteConversationAsync(
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🗑️ [对话历史] 开始删除对话：{ConversationId}", conversationId);
+
+        try
+        {
+            var conversation = await _chatRepo.GetByIdAsync(conversationId);
+            if (conversation == null)
+            {
+                _logger.LogWarning("⚠️ [对话历史] 对话不存在：{ConversationId}", conversationId);
+                throw new KeyNotFoundException($"对话不存在：{conversationId}");
+            }
+
+            await _chatRepo.DeleteAsync(conversationId);
+
+            _logger.LogInformation("✅ [对话历史] 对话删除成功：{ConversationId}", conversationId);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [对话历史] 删除对话失败：{ConversationId}", conversationId);
+            throw;
+        }
+    }
+
     #region 私有核心辅助方法
     /// <summary>
     /// 输入参数校验（统一封装）

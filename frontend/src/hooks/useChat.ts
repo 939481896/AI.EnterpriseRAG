@@ -26,7 +26,6 @@ export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
       let sessionId = currentSessionId
       if (!sessionId) {
         const sessionResponse = await chatApi.createSession({
-          userId: user.account,
           title: question.substring(0, 30) + (question.length > 30 ? '...' : ''),
         })
         if (sessionResponse.success && sessionResponse.data) {
@@ -80,10 +79,9 @@ export function useSessions() {
   const { user } = useAuthStore()
 
   return useQuery({
-    queryKey: ['sessions', user?.account],
+    queryKey: ['sessions'],
     queryFn: async () => {
-      if (!user) return []
-      const response = await chatApi.getSessions(user.account)
+      const response = await chatApi.getSessions()
       return response.data || []
     },
     enabled: !!user,
@@ -127,5 +125,21 @@ export function useSessionMessages(sessionId: string | null) {
       return null
     },
     enabled: !!sessionId,
+  })
+}
+
+export function useUpdateSessionTitle() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+      chatApi.updateSessionTitle(sessionId, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      message.success('会话标题已更新')
+    },
+    onError: () => {
+      message.error('更新标题失败')
+    },
   })
 }
