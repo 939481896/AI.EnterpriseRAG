@@ -205,4 +205,103 @@ public class UserController : BaseApiController
 
         return Ok(Result.Success(MessageResources.User.PasswordResetSuccess));
     }
+
+    /// <summary>
+    /// 获取用户的角色
+    /// </summary>
+    [HttpGet("{userId}/roles")]
+    public async Task<IActionResult> GetUserRoles(long userId)
+    {
+        return await ExecuteWithUserRequiredAsync(async (user) =>
+        {
+            var userRoles = await _context.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .Include(ur => ur.Role)
+                .Select(ur => new
+                {
+                    ur.Role.Id,
+                    ur.Role.RoleName,
+                    ur.Role.RoleCode
+                })
+                .ToListAsync();
+
+            return Ok(Result<object>.SuccessResult(userRoles));
+        });
+    }
+
+    /// <summary>
+    /// 为用户分配角色
+    /// </summary>
+    [HttpPost("{userId}/roles")]
+    public async Task<IActionResult> AssignRoles(long userId, [FromBody] AssignRolesRequest request)
+    {
+        return await ExecuteWithUserRequiredAsync(async (user) =>
+        {
+            var targetUser = await _context.Users
+                .Include(u => u.UserRoles)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (targetUser == null)
+                return NotFound(Result.Fail(MessageResources.User.NotFound));
+
+            // 防止移除admin用户的admin角色
+            if (targetUser.Account == "admin")
+            {
+                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleCode == "admin");
+                if (adminRole != null && !request.RoleIds.Contains(adminRole.Id))
+                {
+                    return BadRequest(Result.Fail(MessageResources.Get("user.cannot_remove_admin_role")));
+                }
+            }
+
+            // 清除现有角色
+            _context.UserRoles.RemoveRange(targetUser.UserRoles);
+
+            // 添加新角色
+            foreach (var roleId in request.RoleIds)
+            {
+                targetUser.UserRoles.Add(new SysUserRole
+                {
+                    UserId = userId,
+                    RoleId = roleId
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("用户{UserId}角色已更新", userId);
+
+            return Ok(Result.Success(MessageResources.Get("user.roles_updated")));
+        });
+    }
+
+    /// <summary>
+    /// 获取用户的权限列表
+    /// </summary>
+    [HttpGet("{userId}/permissions")]
+    public async Task<IActionResult> GetUserPermissions(long userId)
+    {
+        return await ExecuteWithUserRequiredAsync(async (user) =>
+        {
+            var permissions = await _context.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .SelectMany(ur => ur.Role.RolePermissions)
+                .Select(rp => new
+                {
+                    rp.Permission.Id,
+                    rp.Permission.Code,
+                    rp.Permission.Name
+                })
+                .Distinct()
+                .ToListAsync();
+
+            return Ok(Result<object>.SuccessResult(permissions));
+        });
+    }
+}
+
+// 新增DTO
+public class AssignRolesRequest
+{
+    public List<long> RoleIds { get; set; } = new();
 }

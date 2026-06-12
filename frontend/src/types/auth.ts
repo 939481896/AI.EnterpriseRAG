@@ -23,6 +23,7 @@ export interface RegisterRequest {
 }
 
 export interface LoginResponse {
+  userId: string
   accessToken: string
   refreshToken: string
   expiresIn: number

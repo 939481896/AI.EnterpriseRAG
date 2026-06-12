@@ -11,11 +11,12 @@ export function useLogin() {
         mutationFn: (data: LoginRequest) => authApi.login(data),
         onSuccess: (response) => {
             if (response.success && response.data) {
-                const { accessToken, userName, permissions } = response.data
+                const { userId, accessToken, userName, permissions } = response.data
 
-                // 组装用户信息
+                // 组装用户信息 - 包含 userId
                 const userInfo: any = {
-                    account: userName, // 暂时使用 userName 作为 account
+                    id: userId,  // ✅ 添加 userId
+                    account: userName,
                     userName,
                     permissions,
                 }

@@ -25,6 +25,7 @@ using AI.EnterpriseRAG.Infrastructure.Services.Agent;
 using AI.EnterpriseRAG.Infrastructure.Services.Agent.Tools;
 using AI.EnterpriseRAG.WebAPI;
 using AI.EnterpriseRAG.WebAPI.Middleware; // 🆕 开发环境中间件
+using AI.EnterpriseRAG.WebAPI.Services; // 🆕 DatabaseSeeder
 using FluentValidation; // 🆕 FluentValidation
 using FluentValidation.AspNetCore; // 🆕 FluentValidation.AspNetCore
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -267,6 +268,9 @@ builder.Services.AddScoped<IVectorStore>(sp =>
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuthService>();
 
+// 🆕 数据库种子数据初始化服务
+builder.Services.AddScoped<DatabaseSeeder>();
+
 // 权限仓储
 builder.Services.AddScoped<IPermissionService, PermissionRepository>();
 
@@ -426,6 +430,18 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppEnterpriseAiContext>();
     await db.Database.MigrateAsync();
+
+    // 🆕 初始化种子数据（角色、权限、管理员用户）
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+        await seeder.SeedAsync();
+        Log.Information("✅ 数据库种子数据初始化完成");
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "❌ 种子数据初始化失败");
+    }
 
     // 🆕 初始化Qdrant Collection（启动时确保Collection存在）
     try 

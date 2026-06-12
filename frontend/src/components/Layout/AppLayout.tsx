@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Layout, Menu, Avatar, Dropdown, Button, Space } from 'antd'
 import {
   MessageOutlined,
@@ -14,6 +14,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useLogout } from '@/hooks/useAuth'
+import { usePermissionContext } from '@/contexts/PermissionContext'
 import './AppLayout.css'
 
 const { Header, Sider, Content } = Layout
@@ -28,39 +29,97 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation()
   const { user } = useAuthStore()
   const logout = useLogout()
+  const { hasPermission, permissions, isLoading } = usePermissionContext()
 
-  const menuItems = [
-    {
-      key: '/chat',
-      icon: <MessageOutlined />,
-      label: '智能问答',
-    },
-    {
-      key: '/documents',
-      icon: <FileTextOutlined />,
-      label: '文档管理',
-    },
-    {
-      key: '/agent',
-      icon: <RobotOutlined />,
-      label: 'Agent 工作区',
-    },
-    {
-      key: 'admin',
-      icon: <DashboardOutlined />,
-      label: '管理后台',
-      children: [
-        {
-          key: '/admin/dashboard',
-          label: '数据面板',
-        },
-        {
-          key: '/admin/users',
-          label: '用户管理',
-        },
-      ],
-    },
-  ]
+  // 根据权限过滤菜单项
+  const menuItems = useMemo(() => {
+    const allMenuItems = [
+      {
+        key: '/chat',
+        icon: <MessageOutlined />,
+        label: '智能问答',
+        permission: 'menu.chat',
+      },
+      {
+        key: '/documents',
+        icon: <FileTextOutlined />,
+        label: '文档管理',
+        permission: 'menu.document',
+      },
+      {
+        key: '/agent',
+        icon: <RobotOutlined />,
+        label: 'Agent 工作区',
+        permission: 'menu.agent',
+      },
+      {
+        key: 'admin',
+        icon: <DashboardOutlined />,
+        label: '管理后台',
+        permission: 'menu.admin',
+        children: [
+          {
+            key: '/admin/dashboard',
+            label: '数据面板',
+            permission: 'menu.admin',
+          },
+          {
+            key: '/admin/users',
+            label: '用户管理',
+            permission: 'menu.user',
+          },
+          {
+            key: '/admin/roles',
+            label: '角色管理',
+            permission: 'menu.role',
+          },
+          {
+            key: '/admin/permissions',
+            label: '权限管理',
+            permission: 'menu.permission',
+          },
+        ],
+      },
+    ]
+
+    // 如果权限还在加载，显示所有菜单（避免闪烁）
+    if (isLoading) {
+      return allMenuItems.map(item => {
+        if (item.children) {
+          return {
+            ...item,
+            children: item.children.map(({ permission, ...child }) => child),
+          }
+        }
+        const { permission, ...menuItem } = item
+        return menuItem
+      })
+    }
+
+    // 过滤菜单项
+    const filtered = allMenuItems
+      .filter(item => !item.permission || hasPermission(item.permission))
+      .map(item => {
+        if (item.children) {
+          const filteredChildren = item.children.filter(
+            child => !child.permission || hasPermission(child.permission)
+          )
+          // 如果所有子菜单都被过滤掉，则不显示父菜单
+          if (filteredChildren.length === 0) return null
+
+          return {
+            ...item,
+            children: filteredChildren.map(({ permission, ...child }) => child),
+          }
+        }
+        // 移除 permission 属性，因为 Menu 组件不需要它
+        const { permission, ...menuItem } = item
+        return menuItem
+      })
+      .filter(Boolean) // 移除 null 项
+
+    return filtered
+  }, [hasPermission, permissions, isLoading])
 
   const userMenuItems = [
     {

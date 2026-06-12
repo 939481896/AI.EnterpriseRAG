@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import {
   Table,
   Button,
@@ -10,6 +10,9 @@ import {
   Typography,
   message,
   Popconfirm,
+  Drawer,
+  Checkbox,
+  Tag,
 } from 'antd'
 import {
   PlusOutlined,
@@ -19,11 +22,14 @@ import {
   MailOutlined,
   PhoneOutlined,
   TeamOutlined,
+  SafetyOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import type { User } from '@/types/auth'
 import { userApi } from '@/api/user'
+import { useRoles, useUserRoles, useAssignUserRoles } from '@/hooks/usePermission'
+import { PermissionGuard } from '@/contexts/PermissionContext'
 import dayjs from 'dayjs'
 import './UserManagement.css'
 
@@ -32,17 +38,29 @@ const { Title } = Typography
 export default function UserManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [isRoleDrawerOpen, setIsRoleDrawerOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
 
   // Fetch users
-  const { data, isLoading } = useQuery({
+  const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const response = await userApi.getUsers(1, 100)
       return response.data?.items || []
     },
   })
+
+  // Fetch all roles
+  const { data: allRoles = [] } = useRoles()
+
+  // Fetch user roles when drawer opens
+  const { data: userRoles = [] } = useUserRoles(currentUser?.id || null)
+
+  // Assign roles mutation
+  const assignRoles = useAssignUserRoles()
 
   // Create user mutation
   const createUserMutation = useMutation({
@@ -143,7 +161,39 @@ export default function UserManagement() {
     form.resetFields()
   }
 
-  const columns: ColumnsType<User> = [
+  const handleAssignRoles = (user: User) => {
+    setCurrentUser(user)
+    setIsRoleDrawerOpen(true)
+  }
+
+  const handleRoleDrawerClose = () => {
+    setIsRoleDrawerOpen(false)
+    setCurrentUser(null)
+    setSelectedRoleIds([])
+  }
+
+  const handleSaveRoles = async () => {
+    if (!currentUser) return
+
+    await assignRoles.mutateAsync({
+      userId: Number(currentUser.id),
+      roleIds: selectedRoleIds,
+    })
+
+    handleRoleDrawerClose()
+  }
+
+  // Update selected roles when user roles are loaded
+  React.useEffect(() => {
+    if (userRoles.length > 0) {
+      setSelectedRoleIds(userRoles.map((r: any) => r.id))
+    } else {
+      setSelectedRoleIds([])
+    }
+  }, [userRoles])
+
+  // Memoize columns to prevent infinite re-renders
+  const columns: ColumnsType<User> = React.useMemo(() => [
     {
       title: '账号',
       dataIndex: 'account',
@@ -196,49 +246,65 @@ export default function UserManagement() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确认删除"
-            description="确定要删除该用户吗？"
-            onConfirm={() => handleDelete(record.id)}
-            okText="删除"
-            cancelText="取消"
-            okType="danger"
-          >
+          <PermissionGuard permission="user.update">
             <Button
               type="link"
               size="small"
-              danger
-              icon={<DeleteOutlined />}
-              loading={deleteUserMutation.isPending}
+              icon={<SafetyOutlined />}
+              onClick={() => handleAssignRoles(record)}
             >
-              删除
+              分配角色
             </Button>
-          </Popconfirm>
+          </PermissionGuard>
+          <PermissionGuard permission="user.update">
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              编辑
+            </Button>
+          </PermissionGuard>
+          <PermissionGuard permission="user.delete">
+            <Popconfirm
+              title="确认删除"
+              description="确定要删除该用户吗？"
+              onConfirm={() => handleDelete(record.id)}
+              okText="删除"
+              cancelText="取消"
+              okType="danger"
+            >
+              <Button
+                type="link"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                loading={deleteUserMutation.isPending}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          </PermissionGuard>
         </Space>
       ),
     },
-  ]
+  ], [toggleStatusMutation.isPending, deleteUserMutation.isPending]) // Add dependencies for loading states
 
   return (
     <div className="page-container">
       <div className="page-header">
         <h3>用户管理</h3>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-          添加用户
-        </Button>
+        <PermissionGuard permission="user.create">
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            添加用户
+          </Button>
+        </PermissionGuard>
       </div>
 
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={users}
         rowKey="id"
         loading={isLoading}
         pagination={{
@@ -316,6 +382,52 @@ export default function UserManagement() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Role Assignment Drawer */}
+      <Drawer
+        title={`为 "${currentUser?.realName}" 分配角色`}
+        placement="right"
+        width={400}
+        open={isRoleDrawerOpen}
+        onClose={handleRoleDrawerClose}
+        extra={
+          <Space>
+            <Button onClick={handleRoleDrawerClose}>取消</Button>
+            <Button
+              type="primary"
+              onClick={handleSaveRoles}
+              loading={assignRoles.isPending}
+            >
+              保存
+            </Button>
+          </Space>
+        }
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="secondary">
+            当前已分配 {selectedRoleIds.length} 个角色
+          </Typography.Text>
+        </div>
+        <Checkbox.Group
+          style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}
+          value={selectedRoleIds}
+          onChange={(checkedValues) => setSelectedRoleIds(checkedValues as number[])}
+        >
+          {allRoles.map((role: any) => (
+            <Checkbox key={role.id} value={role.id}>
+              <Space>
+                <Tag color={role.roleCode === 'admin' ? 'red' : 'blue'}>{role.roleCode}</Tag>
+                <span>{role.roleName}</span>
+              </Space>
+              {role.description && (
+                <div style={{ marginLeft: 24, fontSize: 12, color: '#999' }}>
+                  {role.description}
+                </div>
+              )}
+            </Checkbox>
+          ))}
+        </Checkbox.Group>
+      </Drawer>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 import { chatApi } from '@/api/chat'
@@ -66,6 +67,13 @@ export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
 
         // Invalidate sessions query to refresh list
         queryClient.invalidateQueries({ queryKey: ['sessions'] })
+
+        // ✅ 关键：当前会话发送新消息后，刷新该会话的消息列表
+        if (currentSessionId) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['session-messages', currentSessionId] 
+          })
+        }
       }
     },
     onError: (error: any) => {
@@ -85,6 +93,11 @@ export function useSessions() {
       return response.data || []
     },
     enabled: !!user,
+    // ✅ 优化：短时间缓存，避免过度请求
+    staleTime: 30 * 1000,    // 30秒后标记为过期
+    gcTime: 5 * 60 * 1000, // 5分钟后清除缓存 (previously cacheTime)
+    refetchOnMount: true,     // 组件挂载时刷新
+    refetchOnWindowFocus: true, // 窗口聚焦时刷新
   })
 }
 
@@ -104,9 +117,9 @@ export function useDeleteSession() {
 }
 
 export function useSessionMessages(sessionId: string | null) {
-  const { setMessages } = useChatStore()
+  const { setMessages, clearMessages } = useChatStore()
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['session-messages', sessionId],
     queryFn: async () => {
       if (!sessionId) return null
@@ -119,13 +132,29 @@ export function useSessionMessages(sessionId: string | null) {
           content: msg.message,
           timestamp: new Date(msg.timestamp),
         }))
-        setMessages(messages)
-        return response.data
+        return { messages, raw: response.data }
       }
       return null
     },
     enabled: !!sessionId,
+    // ✅ 优化后的缓存策略 - 充分利用缓存
+    staleTime: 5 * 60 * 1000,    // 5分钟内认为数据是新鲜的（历史消息不会变）
+    gcTime: 30 * 60 * 1000,   // 30分钟后才清除缓存 (previously cacheTime)
+    refetchOnMount: false,       // 组件挂载时不自动刷新（使用缓存）
+    refetchOnWindowFocus: false, // 窗口聚焦时不刷新
+    // 注意：当前会话发送新消息后，会通过 invalidateQueries 主动刷新
   })
+
+  // ✅ 关键修复：监听查询数据变化，无论来自API还是缓存，都更新store
+  useEffect(() => {
+    if (query.data?.messages) {
+      setMessages(query.data.messages)
+    } else if (!sessionId) {
+      clearMessages()
+    }
+  }, [query.data, sessionId, setMessages, clearMessages])
+
+  return query
 }
 
 export function useUpdateSessionTitle() {

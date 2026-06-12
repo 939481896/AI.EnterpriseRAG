@@ -81,6 +81,7 @@ public class AuthService
 
         return new LoginResponse
         {
+            UserId = user.Id.ToString(),
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresIn = 1800,

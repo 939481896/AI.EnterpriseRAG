@@ -77,6 +77,27 @@ public static class MessageResources
             ["permission.retrieve_failed"] = "获取权限失败",
             ["permission.token_revoked"] = "Token已吊销，用户将强制下线",
             ["permission.user_permission_refreshed"] = "用户权限已刷新，下次接口自动重新加载",
+            ["permission.notfound"] = "权限不存在",
+            ["permission.code_exists"] = "权限代码已存在",
+            ["permission.create_success"] = "权限创建成功",
+            ["permission.update_success"] = "权限更新成功",
+            ["permission.delete_success"] = "权限删除成功",
+            ["permission.has_roles"] = "该权限已关联角色，无法删除",
+
+            // ==================== Role Management ====================
+            ["role.notfound"] = "角色不存在",
+            ["role.code_exists"] = "角色代码已存在",
+            ["role.create_success"] = "角色创建成功",
+            ["role.update_success"] = "角色更新成功",
+            ["role.delete_success"] = "角色删除成功",
+            ["role.cannot_modify_admin"] = "不能修改管理员角色代码",
+            ["role.cannot_delete_admin"] = "不能删除管理员角色",
+            ["role.has_users"] = "该角色已关联用户，无法删除",
+            ["role.permissions_updated"] = "角色权限已更新",
+
+            // ==================== User Role Management ====================
+            ["user.cannot_remove_admin_role"] = "不能移除管理员的管理员角色",
+            ["user.roles_updated"] = "用户角色已更新",
             
             // ==================== Validation Messages ====================
             ["validation.required"] = "{0}不能为空",
@@ -172,6 +193,27 @@ public static class MessageResources
             ["permission.retrieve_failed"] = "Failed to retrieve permissions",
             ["permission.token_revoked"] = "Token has been revoked, user will be forced offline",
             ["permission.user_permission_refreshed"] = "User permissions refreshed, will reload on next request",
+            ["permission.notfound"] = "Permission not found",
+            ["permission.code_exists"] = "Permission code already exists",
+            ["permission.create_success"] = "Permission created successfully",
+            ["permission.update_success"] = "Permission updated successfully",
+            ["permission.delete_success"] = "Permission deleted successfully",
+            ["permission.has_roles"] = "Permission is associated with roles, cannot delete",
+
+            // ==================== Role Management ====================
+            ["role.notfound"] = "Role not found",
+            ["role.code_exists"] = "Role code already exists",
+            ["role.create_success"] = "Role created successfully",
+            ["role.update_success"] = "Role updated successfully",
+            ["role.delete_success"] = "Role deleted successfully",
+            ["role.cannot_modify_admin"] = "Cannot modify admin role code",
+            ["role.cannot_delete_admin"] = "Cannot delete admin role",
+            ["role.has_users"] = "Role is associated with users, cannot delete",
+            ["role.permissions_updated"] = "Role permissions updated",
+
+            // ==================== User Role Management ====================
+            ["user.cannot_remove_admin_role"] = "Cannot remove admin role from admin user",
+            ["user.roles_updated"] = "User roles updated",
             
             // ==================== Validation Messages ====================
             ["validation.required"] = "{0} is required",
