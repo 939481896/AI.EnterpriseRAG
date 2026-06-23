@@ -31,9 +31,4 @@ export interface LoginResponse {
   permissions: string[]
 }
 
-export interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  message?: string
-  code?: number
-}
+export type { ApiResponse } from '@/types/api'

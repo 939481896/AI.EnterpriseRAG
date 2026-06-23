@@ -1,17 +1,30 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { message } from 'antd'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chatStore'
 import { useAuthStore } from '@/store/authStore'
-import type { ChatRequest } from '@/types/chat'
+import type { ChatRequest, Message } from '@/types/chat'
+import { notification } from '@/services/notification'
+import { uiText } from '@/config/uiText'
+import { getErrorMessage } from '@/types/error'
+import { queryKeys } from '@/config/queryKeys'
 
+/**
+ * Send chat message with optimistic UX.
+ *
+ * Flow:
+ * 1) Optimistically append user message.
+ * 2) Ensure session exists (create when first message).
+ * 3) Send request (v0/v1).
+ * 4) Append assistant response and invalidate related queries.
+ */
 export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
   const { user } = useAuthStore()
   const { addMessage, setStreaming, currentSessionId, setCurrentSessionId } = useChatStore()
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: async (question: string) => {
       if (!user) throw new Error('User not authenticated')
 
@@ -66,19 +79,19 @@ export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
         })
 
         // Invalidate sessions query to refresh list
-        queryClient.invalidateQueries({ queryKey: ['sessions'] })
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.sessions })
 
         // ✅ 关键：当前会话发送新消息后，刷新该会话的消息列表
         if (currentSessionId) {
-          queryClient.invalidateQueries({ 
-            queryKey: ['session-messages', currentSessionId] 
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.chat.sessionMessages(currentSessionId),
           })
         }
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       setStreaming(false)
-      message.error(error.response?.data?.message || '发送失败，请重试')
+      notification.error(getErrorMessage(error) || uiText.chat.sendFailed)
     },
   })
 }
@@ -86,8 +99,9 @@ export function useSendMessage(version: 'v0' | 'v1' = 'v1') {
 export function useSessions() {
   const { user } = useAuthStore()
 
+  // Session list is server state and should not be mirrored in Zustand.
   return useQuery({
-    queryKey: ['sessions'],
+    queryKey: queryKeys.chat.sessions,
     queryFn: async () => {
       const response = await chatApi.getSessions()
       return response.data || []
@@ -105,13 +119,14 @@ export function useDeleteSession() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (sessionId: string) => chatApi.deleteSession(sessionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      message.success('会话已删除')
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat.sessions })
+      notification.success(uiText.chat.deleteSuccess)
     },
     onError: () => {
-      message.error('删除失败')
+      notification.error(uiText.chat.deleteFailed)
     },
   })
 }
@@ -119,14 +134,15 @@ export function useDeleteSession() {
 export function useSessionMessages(sessionId: string | null) {
   const { setMessages, clearMessages } = useChatStore()
 
+  // Query owns source of truth; store mirrors data for component rendering convenience.
   const query = useQuery({
-    queryKey: ['session-messages', sessionId],
+    queryKey: queryKeys.chat.sessionMessages(sessionId),
     queryFn: async () => {
       if (!sessionId) return null
       const response = await chatApi.getSessionMessages(sessionId)
       if (response.success && response.data) {
         // Transform backend messages to frontend format
-        const messages = response.data.messages.map((msg: any) => ({
+        const messages: Message[] = response.data.messages.map((msg) => ({
           id: msg.id,
           role: msg.role,
           content: msg.message,
@@ -161,14 +177,15 @@ export function useUpdateSessionTitle() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
       chatApi.updateSessionTitle(sessionId, title),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      message.success('会话标题已更新')
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat.sessions })
+      notification.success(uiText.chat.titleUpdated)
     },
     onError: () => {
-      message.error('更新标题失败')
+      notification.error(uiText.chat.titleUpdateFailed)
     },
   })
 }

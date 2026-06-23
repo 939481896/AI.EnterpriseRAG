@@ -7,8 +7,6 @@ import {
   Form,
   Input,
   Switch,
-  Typography,
-  message,
   Popconfirm,
   Drawer,
   Checkbox,
@@ -30,10 +28,29 @@ import type { User } from '@/types/auth'
 import { userApi } from '@/api/user'
 import { useRoles, useUserRoles, useAssignUserRoles } from '@/hooks/usePermission'
 import { PermissionGuard } from '@/contexts/PermissionContext'
+import type { Role } from '@/api/permission'
 import dayjs from 'dayjs'
-import './UserManagement.css'
+import { uiText, formatText } from '@/config/uiText'
+import { notification } from '@/services/notification'
+import { getErrorMessage } from '@/types/error'
+import { queryKeys } from '@/config/queryKeys'
+import { useLocaleStore } from '@/store/localeStore'
 
-const { Title } = Typography
+type CreateUserInput = {
+  account: string
+  password: string
+  realName: string
+  email: string
+  phone?: string
+  department?: string
+}
+
+type UpdateUserInput = {
+  realName: string
+  email: string
+  phone?: string
+  department?: string
+}
 
 export default function UserManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -42,11 +59,12 @@ export default function UserManagement() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
   const [form] = Form.useForm()
+  const locale = useLocaleStore((state) => state.locale)
   const queryClient = useQueryClient()
 
   // Fetch users
   const { data: users, isLoading } = useQuery({
-    queryKey: ['users'],
+    queryKey: queryKeys.user.list,
     queryFn: async () => {
       const response = await userApi.getUsers(1, 100)
       return response.data?.items || []
@@ -57,62 +75,66 @@ export default function UserManagement() {
   const { data: allRoles = [] } = useRoles()
 
   // Fetch user roles when drawer opens
-  const { data: userRoles = [] } = useUserRoles(currentUser?.id || null)
+  const { data: userRoles = [] } = useUserRoles(currentUser?.id ? Number(currentUser.id) : null)
 
   // Assign roles mutation
   const assignRoles = useAssignUserRoles()
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (values: any) => userApi.createUser(values),
+    meta: { silentError: true },
+    mutationFn: (values: CreateUserInput) => userApi.createUser(values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success('用户已添加')
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.list })
+      notification.success(uiText.adminUser.userAdded)
       setIsModalOpen(false)
       form.resetFields()
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '添加失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.adminUser.addFailed)
     },
   })
 
   // Update user mutation
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    meta: { silentError: true },
+    mutationFn: ({ id, data }: { id: string; data: UpdateUserInput }) =>
       userApi.updateUser(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success('用户信息已更新')
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.list })
+      notification.success(uiText.adminUser.userUpdated)
       setIsModalOpen(false)
       form.resetFields()
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '更新失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.adminUser.updateFailed)
     },
   })
 
   // Delete user mutation
   const deleteUserMutation = useMutation({
+    meta: { silentError: true },
     mutationFn: (userId: string) => userApi.deleteUser(userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success('用户已删除')
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.list })
+      notification.success(uiText.adminUser.userDeleted)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '删除失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.adminUser.userDeleteFailed)
     },
   })
 
   // Toggle status mutation
   const toggleStatusMutation = useMutation({
+    meta: { silentError: true },
     mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
       userApi.toggleUserStatus(userId, isActive),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      message.success(variables.isActive ? '用户已启用' : '用户已禁用')
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.list })
+      notification.success(variables.isActive ? uiText.adminUser.userEnabled : uiText.adminUser.userDisabled)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '操作失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.common.operationFailed)
     },
   })
 
@@ -142,7 +164,12 @@ export default function UserManagement() {
 
       if (editingUser) {
         // Update user (exclude password)
-        const { password, ...updateData } = values
+        const { password: _password, ...updateData } = values
+        if (!editingUser.id) {
+          notification.error(uiText.common.operationFailed)
+          return
+        }
+
         updateUserMutation.mutate({
           id: editingUser.id,
           data: updateData,
@@ -186,7 +213,7 @@ export default function UserManagement() {
   // Update selected roles when user roles are loaded
   React.useEffect(() => {
     if (userRoles.length > 0) {
-      setSelectedRoleIds(userRoles.map((r: any) => r.id))
+      setSelectedRoleIds(userRoles.map((r: Role) => r.id))
     } else {
       setSelectedRoleIds([])
     }
@@ -195,7 +222,7 @@ export default function UserManagement() {
   // Memoize columns to prevent infinite re-renders
   const columns: ColumnsType<User> = React.useMemo(() => [
     {
-      title: '账号',
+      title: uiText.adminUser.account,
       dataIndex: 'account',
       key: 'account',
       render: (text) => (
@@ -206,43 +233,43 @@ export default function UserManagement() {
       ),
     },
     {
-      title: '真实姓名',
+      title: uiText.adminUser.realName,
       dataIndex: 'realName',
       key: 'realName',
     },
     {
-      title: '邮箱',
+      title: uiText.adminUser.email,
       dataIndex: 'email',
       key: 'email',
       ellipsis: true,
     },
     {
-      title: '部门',
+      title: uiText.adminUser.department,
       dataIndex: 'department',
       key: 'department',
     },
     {
-      title: '状态',
+      title: uiText.adminUser.status,
       dataIndex: 'isActive',
       key: 'isActive',
       render: (isActive: boolean, record) => (
         <Switch
           checked={isActive}
-          onChange={(checked) => handleToggleStatus(record.id, checked)}
-          checkedChildren="启用"
-          unCheckedChildren="禁用"
+          onChange={(checked) => record.id && handleToggleStatus(record.id, checked)}
+          checkedChildren={uiText.adminUser.enable}
+          unCheckedChildren={uiText.adminUser.disable}
           loading={toggleStatusMutation.isPending}
         />
       ),
     },
     {
-      title: '创建时间',
+      title: uiText.adminUser.createTime,
       dataIndex: 'createTime',
       key: 'createTime',
       render: (time: string) => dayjs(time).format('YYYY-MM-DD'),
     },
     {
-      title: '操作',
+      title: uiText.adminUser.actions,
       key: 'actions',
       render: (_, record) => (
         <Space>
@@ -251,9 +278,9 @@ export default function UserManagement() {
               type="link"
               size="small"
               icon={<SafetyOutlined />}
-              onClick={() => handleAssignRoles(record)}
+              onClick={() => { handleAssignRoles(record); }}
             >
-              分配角色
+              {uiText.adminUser.assignRole}
             </Button>
           </PermissionGuard>
           <PermissionGuard permission="user.update">
@@ -261,18 +288,18 @@ export default function UserManagement() {
               type="link"
               size="small"
               icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
+              onClick={() => { handleEdit(record); }}
             >
-              编辑
+              {uiText.common.edit}
             </Button>
           </PermissionGuard>
           <PermissionGuard permission="user.delete">
             <Popconfirm
-              title="确认删除"
-              description="确定要删除该用户吗？"
-              onConfirm={() => handleDelete(record.id)}
-              okText="删除"
-              cancelText="取消"
+              title={uiText.adminUser.confirmDeleteTitle}
+              description={uiText.adminUser.confirmDeleteContent}
+              onConfirm={() => record.id && handleDelete(record.id)}
+              okText={uiText.common.delete}
+              cancelText={uiText.common.cancel}
               okType="danger"
             >
               <Button
@@ -282,22 +309,22 @@ export default function UserManagement() {
                 icon={<DeleteOutlined />}
                 loading={deleteUserMutation.isPending}
               >
-                删除
+                {uiText.common.delete}
               </Button>
             </Popconfirm>
           </PermissionGuard>
         </Space>
       ),
     },
-  ], [toggleStatusMutation.isPending, deleteUserMutation.isPending]) // Add dependencies for loading states
+  ], [toggleStatusMutation.isPending, deleteUserMutation.isPending, locale])
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <h3>用户管理</h3>
+        <h3>{uiText.adminUser.title}</h3>
         <PermissionGuard permission="user.create">
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-            添加用户
+            {uiText.adminUser.addUser}
           </Button>
         </PermissionGuard>
       </div>
@@ -310,33 +337,33 @@ export default function UserManagement() {
         pagination={{
           pageSize: 10,
           showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 个用户`,
+          showTotal: (total) => formatText(uiText.adminUser.totalUsers, { total }),
         }}
       />
 
       <Modal
-        title={editingUser ? '编辑用户' : '添加用户'}
+        title={editingUser ? uiText.adminUser.editUser : uiText.adminUser.createUser}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         width={600}
-        okText="确定"
-        cancelText="取消"
+        okText={uiText.common.confirm}
+        cancelText={uiText.common.cancel}
         confirmLoading={createUserMutation.isPending || updateUserMutation.isPending}
       >
         <Form form={form} layout="vertical" autoComplete="off">
           <Form.Item
             name="account"
-            label="账号"
+            label={uiText.adminUser.account}
             rules={[
-              { required: true, message: '请输入账号' },
-              { min: 3, message: '账号至少3个字符' },
-              { pattern: /^[a-zA-Z0-9_]+$/, message: '只能包含字母、数字、下划线' },
+              { required: true, message: uiText.adminUser.inputAccount },
+              { min: 3, message: uiText.adminUser.accountMin },
+              { pattern: /^[a-zA-Z0-9_]+$/, message: uiText.adminUser.accountPattern },
             ]}
           >
             <Input
               prefix={<UserOutlined />}
-              placeholder="账号"
+              placeholder={uiText.adminUser.accountPlaceholder}
               disabled={!!editingUser}
             />
           </Form.Item>
@@ -344,76 +371,76 @@ export default function UserManagement() {
           {!editingUser && (
             <Form.Item
               name="password"
-              label="密码"
+              label={uiText.auth.password}
               rules={[
-                { required: true, message: '请输入密码' },
-                { min: 6, message: '密码至少6个字符' },
+                { required: true, message: uiText.adminUser.inputPassword },
+                { min: 6, message: uiText.adminUser.passwordMin },
               ]}
             >
-              <Input.Password placeholder="密码" />
+              <Input.Password placeholder={uiText.adminUser.passwordPlaceholder} />
             </Form.Item>
           )}
 
           <Form.Item
             name="realName"
-            label="真实姓名"
-            rules={[{ required: true, message: '请输入真实姓名' }]}
+            label={uiText.adminUser.realName}
+            rules={[{ required: true, message: uiText.adminUser.inputRealName }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="真实姓名" />
+            <Input prefix={<UserOutlined />} placeholder={uiText.adminUser.realNamePlaceholder} />
           </Form.Item>
 
           <Form.Item
             name="email"
-            label="邮箱"
+            label={uiText.adminUser.email}
             rules={[
-              { required: true, message: '请输入邮箱' },
-              { type: 'email', message: '邮箱格式不正确' },
+              { required: true, message: uiText.adminUser.inputEmail },
+              { type: 'email', message: uiText.adminUser.emailInvalid },
             ]}
           >
-            <Input prefix={<MailOutlined />} placeholder="邮箱地址" />
+            <Input prefix={<MailOutlined />} placeholder={uiText.adminUser.emailPlaceholder} />
           </Form.Item>
 
-          <Form.Item name="phone" label="手机号">
-            <Input prefix={<PhoneOutlined />} placeholder="手机号（可选）" />
+          <Form.Item name="phone" label={uiText.auth.phone}>
+            <Input prefix={<PhoneOutlined />} placeholder={uiText.adminUser.phonePlaceholder} />
           </Form.Item>
 
-          <Form.Item name="department" label="部门">
-            <Input prefix={<TeamOutlined />} placeholder="所属部门（可选）" />
+          <Form.Item name="department" label={uiText.adminUser.department}>
+            <Input prefix={<TeamOutlined />} placeholder={uiText.adminUser.departmentPlaceholder} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Role Assignment Drawer */}
       <Drawer
-        title={`为 "${currentUser?.realName}" 分配角色`}
+        title={formatText(uiText.adminUser.assignRoleDrawerTitle, { name: currentUser?.userName || currentUser?.account || '' })}
         placement="right"
         width={400}
         open={isRoleDrawerOpen}
         onClose={handleRoleDrawerClose}
         extra={
           <Space>
-            <Button onClick={handleRoleDrawerClose}>取消</Button>
+            <Button onClick={handleRoleDrawerClose}>{uiText.common.cancel}</Button>
             <Button
               type="primary"
               onClick={handleSaveRoles}
               loading={assignRoles.isPending}
             >
-              保存
+              {uiText.common.save}
             </Button>
           </Space>
         }
       >
         <div style={{ marginBottom: 16 }}>
-          <Typography.Text type="secondary">
-            当前已分配 {selectedRoleIds.length} 个角色
-          </Typography.Text>
+          <span style={{ color: '#666' }}>
+            {formatText(uiText.adminUser.assignedRoleCount, { count: selectedRoleIds.length })}
+          </span>
         </div>
         <Checkbox.Group
           style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}
           value={selectedRoleIds}
-          onChange={(checkedValues) => setSelectedRoleIds(checkedValues as number[])}
+          onChange={(checkedValues) => { setSelectedRoleIds(checkedValues); }}
         >
-          {allRoles.map((role: any) => (
+          {allRoles.map((role: Role) => (
             <Checkbox key={role.id} value={role.id}>
               <Space>
                 <Tag color={role.roleCode === 'admin' ? 'red' : 'blue'}>{role.roleCode}</Tag>

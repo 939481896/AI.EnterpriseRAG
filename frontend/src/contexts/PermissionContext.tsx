@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react'
 import { useUserPermissions } from '@/hooks/usePermission'
 import { useAuthStore } from '@/store/authStore'
+import type { Permission } from '@/api/permission'
 
 interface PermissionContextValue {
   permissions: string[]
@@ -31,7 +32,7 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // 提取权限代码列表
   const permissions = useMemo(() => {
-    return permissionsData.map((p: any) => p.code)
+    return permissionsData.map((p: Permission) => p.code)
   }, [permissionsData])
 
   // 检查单个权限

@@ -1,5 +1,6 @@
 import apiClient from './client'
-import type { LoginRequest, RegisterRequest, LoginResponse, ApiResponse } from '@/types/auth'
+import type { LoginRequest, RegisterRequest, LoginResponse } from '@/types/auth'
+import type { ApiResponse } from '@/types/api'
 
 export const authApi = {
   /**

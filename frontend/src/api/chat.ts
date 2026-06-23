@@ -1,5 +1,13 @@
 import apiClient from './client'
-import type { ChatRequest, ChatResponse, ConversationSession, ApiResponse } from '@/types/chat'
+import type { ChatRequest, ChatResponse, ConversationSession, Message } from '@/types/chat'
+import type { ApiResponse } from '@/types/api'
+
+interface SessionMessageDto {
+  id: string
+  role: Message['role']
+  message: string
+  timestamp: string
+}
 
 export const chatApi = {
   /**
@@ -30,7 +38,7 @@ export const chatApi = {
    */
   getSessionMessages: async (sessionId: string): Promise<ApiResponse<{
     session: ConversationSession
-    messages: any[]
+    messages: SessionMessageDto[]
   }>> => {
     return apiClient.get(`/api/chat/sessions/${sessionId}/messages`)
   },

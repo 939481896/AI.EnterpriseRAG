@@ -1,0 +1,37 @@
+/* Sidebar Content Layout */
+.sidebar-layout-header {
+  flex-shrink: 0;
+}
+
+.sidebar-layout-footer {
+  flex-shrink: 0;
+}
+
+/* Table Management Layout */
+.table-management-layout {
+  padding: 0;
+}
+
+.table-filters {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table-filters > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Workflow Layout */
+.workflow-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.workflow-layout input,
+.workflow-layout textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', source-code-pro, monospace;
+}

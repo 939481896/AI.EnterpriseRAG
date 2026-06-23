@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { message } from 'antd'
 import { documentApi } from '@/api/document'
 import type { UploadProgressInfo } from '@/types/document'
+import { notification } from '@/services/notification'
+import { uiText } from '@/config/uiText'
+import { getErrorMessage } from '@/types/error'
+import { queryKeys } from '@/config/queryKeys'
 
+/**
+ * Document list query hook.
+ * Pagination is encoded in query key for independent caching per page.
+ */
 export function useDocuments(page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: ['documents', page, pageSize],
+    queryKey: queryKeys.document.list(page, pageSize),
     queryFn: async () => {
       const response = await documentApi.getDocuments(page, pageSize)
       return response.data || { items: [], total: 0 }
@@ -18,7 +25,12 @@ export function useUploadDocument() {
   const queryClient = useQueryClient()
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgressInfo>>({})
 
+  /**
+   * Upload mutation with local progress tracker.
+   * Progress map key format: <file-name>-<timestamp>.
+   */
   const uploadMutation = useMutation({
+    meta: { silentError: true },
     mutationFn: async (file: File) => {
       const fileId = `${file.name}-${Date.now()}`
       
@@ -54,20 +66,21 @@ export function useUploadDocument() {
       return response
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] })
-      message.success('文档上传成功')
+      // Invalidate all document pages after upload.
+      queryClient.invalidateQueries({ queryKey: queryKeys.document.all })
+      notification.success(uiText.document.uploadSuccess)
     },
-    onError: (error: any, file) => {
+    onError: (error: unknown, file) => {
       const fileId = `${file.name}-${Date.now()}`
       setUploadProgress((prev) => ({
         ...prev,
         [fileId]: {
           ...prev[fileId],
           status: 'error',
-          error: error.message,
+          error: getErrorMessage(error),
         },
       }))
-      message.error('上传失败')
+      notification.error(uiText.document.uploadFailed)
     },
   })
 
@@ -82,20 +95,22 @@ export function useDeleteDocument() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (documentId: string) => documentApi.deleteDocument(documentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] })
-      message.success('文档已删除')
+      // Deleting one document may affect pagination totals.
+      queryClient.invalidateQueries({ queryKey: queryKeys.document.all })
+      notification.success(uiText.document.deleteSuccess)
     },
     onError: () => {
-      message.error('删除失败')
+      notification.error(uiText.document.deleteFailed)
     },
   })
 }
 
 export function useDocumentCategories() {
   return useQuery({
-    queryKey: ['documentCategories'],
+    queryKey: queryKeys.document.categories,
     queryFn: async () => {
       const response = await documentApi.getCategories()
       return response.data || []

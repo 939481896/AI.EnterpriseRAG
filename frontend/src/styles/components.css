@@ -279,6 +279,83 @@
   background: linear-gradient(
     90deg,
     var(--bg-lighter) 25%,
+
+/* ====================================
+   🤖 Agent Workspace
+   ==================================== */
+
+.agent-workspace {
+  padding: var(--space-lg);
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+}
+
+.input-card {
+  margin-bottom: var(--space-lg);
+}
+
+.execution-card {
+  margin-bottom: var(--space-lg);
+}
+
+.step-content {
+  padding: var(--space-md) 0;
+}
+
+.step-header {
+  margin-bottom: var(--space-sm);
+}
+
+.step-body {
+  margin-top: var(--space-sm);
+}
+
+.action-details {
+  margin-bottom: var(--space-md);
+}
+
+.code-block {
+  background-color: #f6f8fa;
+  border-radius: var(--radius-base);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  margin: var(--space-sm) 0;
+}
+
+.observation-result {
+  margin-top: var(--space-sm);
+}
+
+.final-answer {
+  background-color: #f0f9ff;
+  border-left: 4px solid var(--color-primary);
+  padding: var(--space-base);
+  border-radius: var(--radius-sm);
+}
+
+.final-answer h1,
+.final-answer h2,
+.final-answer h3 {
+  margin-top: 0;
+}
+
+.final-answer p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .agent-workspace {
+    padding: var(--space-base);
+  }
+
+  .code-block {
+    font-size: 11px;
+    padding: var(--space-sm);
+  }
+}
     var(--bg-light) 50%,
     var(--bg-lighter) 75%
   );

@@ -21,6 +21,8 @@ import {
 } from '@/hooks/usePermission'
 import { PermissionGuard } from '@/contexts/PermissionContext'
 import type { Permission } from '@/api/permission'
+import { uiText, formatText } from '@/config/uiText'
+import { useLocaleStore } from '@/store/localeStore'
 
 const { Panel } = Collapse
 
@@ -28,6 +30,7 @@ const PermissionManagement: React.FC = () => {
   const [form] = Form.useForm()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null)
+  const locale = useLocaleStore((state) => state.locale)
 
   const { data: permissions = [], isLoading } = usePermissions()
   const createPermission = useCreatePermission()
@@ -36,15 +39,15 @@ const PermissionManagement: React.FC = () => {
 
   // Group permissions by module (memoized)
   const groupedPermissions = React.useMemo(() => {
-    return permissions.reduce((acc, perm) => {
-      const module = perm.code.split('.')[0] || '其他'
+    return permissions.reduce<Record<string, Permission[]>>((acc, perm) => {
+      const module = perm.code.split('.')[0] || uiText.adminRole.othersModule
       if (!acc[module]) {
         acc[module] = []
       }
       acc[module].push(perm)
       return acc
-    }, {} as Record<string, Permission[]>)
-  }, [permissions])
+    }, {})
+  }, [permissions, locale])
 
   const handleCreate = () => {
     setEditingPermission(null)
@@ -69,29 +72,29 @@ const PermissionManagement: React.FC = () => {
   // Memoize columns to prevent infinite re-renders
   const columns: ColumnsType<Permission> = React.useMemo(() => [
     {
-      title: '权限代码',
+      title: uiText.adminPermission.code,
       dataIndex: 'code',
       key: 'code',
       render: (code: string) => <Tag color="blue">{code}</Tag>,
     },
     {
-      title: '权限名称',
+      title: uiText.adminPermission.name,
       dataIndex: 'name',
       key: 'name',
     },
     {
-      title: '描述',
+      title: uiText.adminPermission.description,
       dataIndex: 'description',
       key: 'description',
     },
     {
-      title: '关联角色数',
+      title: uiText.adminPermission.roleCount,
       dataIndex: 'roleCount',
       key: 'roleCount',
       render: (count: number) => count || 0,
     },
     {
-      title: '操作',
+      title: uiText.adminUser.actions,
       key: 'action',
       render: (_, record) => (
         <Space size="small">
@@ -100,26 +103,26 @@ const PermissionManagement: React.FC = () => {
               type="link"
               size="small"
               icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
+              onClick={() => { handleEdit(record); }}
             >
-              编辑
+              {uiText.common.edit}
             </Button>
           </PermissionGuard>
           <PermissionGuard permission="permission.delete">
             <Popconfirm
-              title="确认删除"
-              description={`确定要删除权限 "${record.name}" 吗？`}
+              title={uiText.common.delete}
+              description={formatText(uiText.adminPermission.deleteConfirm, { name: record.name })}
               onConfirm={() => handleDelete(record.id)}
             >
               <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-                删除
+                {uiText.common.delete}
               </Button>
             </Popconfirm>
           </PermissionGuard>
         </Space>
       ),
     },
-  ], []) // Empty deps since handlers are stable
+  ], [locale])
 
   const handleModalOk = async () => {
     try {
@@ -149,11 +152,11 @@ const PermissionManagement: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Card
-        title="权限管理"
+        title={uiText.adminPermission.title}
         extra={
           <PermissionGuard permission="permission.create">
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              新建权限
+              {uiText.adminPermission.create}
             </Button>
           </PermissionGuard>
         }
@@ -164,7 +167,7 @@ const PermissionManagement: React.FC = () => {
               header={
                 <Space>
                   <Tag color="cyan">{module}</Tag>
-                  <span>{perms.length} 个权限</span>
+                  <span>{formatText(uiText.adminPermission.moduleCount, { count: perms.length })}</span>
                 </Space>
               }
               key={module}
@@ -184,7 +187,7 @@ const PermissionManagement: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={editingPermission ? '编辑权限' : '新建权限'}
+        title={editingPermission ? uiText.adminPermission.edit : uiText.adminPermission.create}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
@@ -193,28 +196,28 @@ const PermissionManagement: React.FC = () => {
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
           <Form.Item
             name="code"
-            label="权限代码"
+            label={uiText.adminPermission.code}
             rules={[
-              { required: true, message: '请输入权限代码' },
+              { required: true, message: uiText.adminPermission.inputCode },
               {
                 pattern: /^[a-z]+\.[a-z_]+$/,
-                message: '格式：模块.操作，如 user.create',
+                message: uiText.adminPermission.codePattern,
               },
             ]}
           >
-            <Input placeholder="如：user.create" />
+            <Input placeholder={uiText.adminPermission.codePlaceholder} />
           </Form.Item>
 
           <Form.Item
             name="name"
-            label="权限名称"
-            rules={[{ required: true, message: '请输入权限名称' }]}
+            label={uiText.adminPermission.name}
+            rules={[{ required: true, message: uiText.adminPermission.inputName }]}
           >
-            <Input placeholder="如：创建用户" />
+            <Input placeholder={uiText.adminPermission.namePlaceholder} />
           </Form.Item>
 
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="权限描述（可选）" />
+          <Form.Item name="description" label={uiText.adminPermission.description}>
+            <Input.TextArea rows={3} placeholder={uiText.adminPermission.descriptionPlaceholder} />
           </Form.Item>
         </Form>
       </Modal>

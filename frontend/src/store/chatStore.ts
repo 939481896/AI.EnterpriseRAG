@@ -1,14 +1,22 @@
 import { create } from 'zustand'
-import type { Message, ConversationSession } from '@/types/chat'
+import type { Message } from '@/types/chat'
 
+/**
+ * Chat UI state store.
+ *
+ * Boundary rules:
+ * - Server state (sessions/messages from backend) belongs to React Query.
+ * - Ephemeral UI state (currentSessionId, streaming flag, optimistic buffer) stays here.
+ */
 interface ChatState {
+  /** Active session selected in sidebar */
   currentSessionId: string | null
-  sessions: ConversationSession[]
+  /** Rendered messages for the active session (synced from query data) */
   messages: Message[]
+  /** Assistant is currently generating content */
   isStreaming: boolean
   
   setCurrentSessionId: (sessionId: string | null) => void
-  setSessions: (sessions: ConversationSession[]) => void
   setMessages: (messages: Message[]) => void
   addMessage: (message: Message) => void
   updateLastMessage: (content: string) => void
@@ -18,37 +26,35 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set) => ({
   currentSessionId: null,
-  sessions: [],
   messages: [],
   isStreaming: false,
 
   setCurrentSessionId: (sessionId) =>
-    set({ currentSessionId: sessionId }),
-
-  setSessions: (sessions) =>
-    set({ sessions }),
+    { set({ currentSessionId: sessionId }); },
 
   setMessages: (messages) =>
-    set({ messages }),
+    { set({ messages }); },
 
   addMessage: (message) =>
-    set((state) => ({
+    { set((state) => ({
+      // Optimistic append for immediate UI feedback.
       messages: [...state.messages, message],
-    })),
+    })); },
 
   updateLastMessage: (content) =>
-    set((state) => {
+    { set((state) => {
       const messages = [...state.messages]
       const lastMessage = messages[messages.length - 1]
+      // Used by streaming-like scenarios to patch the last assistant message.
       if (lastMessage && lastMessage.role === 'assistant') {
         lastMessage.content = content
       }
       return { messages }
-    }),
+    }); },
 
   setStreaming: (isStreaming) =>
-    set({ isStreaming }),
+    { set({ isStreaming }); },
 
   clearMessages: () =>
-    set({ messages: [] }),
+    { set({ messages: [] }); },
 }))

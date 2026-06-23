@@ -7,14 +7,12 @@ import {
   Input,
   Select,
   Modal,
-  message,
   Progress,
   Typography,
   Upload,
   Card,
 } from 'antd'
 import {
-  UploadOutlined,
   SearchOutlined,
   EyeOutlined,
   DeleteOutlined,
@@ -27,6 +25,8 @@ import type { ColumnsType } from 'antd/es/table'
 import { useDocuments, useUploadDocument, useDeleteDocument } from '@/hooks/useDocument'
 import { Document, DocumentStatus } from '@/types/document'
 import dayjs from 'dayjs'
+import { uiText, formatText } from '@/config/uiText'
+import { notification } from '@/services/notification'
 import './DocumentPage.css'
 
 const { Title, Text } = Typography
@@ -40,10 +40,10 @@ const statusColors = {
 }
 
 const statusTexts = {
-  [DocumentStatus.Pending]: '待处理',
-  [DocumentStatus.Processing]: '处理中',
-  [DocumentStatus.Completed]: '已完成',
-  [DocumentStatus.Failed]: '失败',
+  [DocumentStatus.Pending]: uiText.document.pending,
+  [DocumentStatus.Processing]: uiText.document.processing,
+  [DocumentStatus.Completed]: uiText.document.completed,
+  [DocumentStatus.Failed]: uiText.document.failed,
 }
 
 export default function DocumentPage() {
@@ -53,7 +53,7 @@ export default function DocumentPage() {
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | null>(null)
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null)
 
-  const { data, isLoading, refetch } = useDocuments(page, pageSize)
+  const { data, isLoading } = useDocuments(page, pageSize)
   const { upload, uploadProgress, isUploading } = useUploadDocument()
   const deleteDocument = useDeleteDocument()
 
@@ -64,12 +64,12 @@ export default function DocumentPage() {
     )
 
     if (!isValidSize) {
-      message.error('文件大小不能超过 50MB')
+      notification.error(uiText.document.oversizeError)
       return false
     }
 
     if (!isValidType) {
-      message.error('仅支持 PDF、Word、TXT 格式')
+      notification.error(uiText.document.typeError)
       return false
     }
 
@@ -79,11 +79,11 @@ export default function DocumentPage() {
 
   const handleDelete = (doc: Document) => {
     Modal.confirm({
-      title: '确认删除',
-      content: `确定要删除文档 "${doc.name}" 吗？此操作不可恢复。`,
-      okText: '删除',
+      title: uiText.document.confirmDeleteTitle,
+      content: formatText(uiText.document.confirmDeleteContent, { name: doc.name }),
+      okText: uiText.common.delete,
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: uiText.common.cancel,
       onOk: () => {
         deleteDocument.mutate(doc.id)
       },
@@ -102,7 +102,7 @@ export default function DocumentPage() {
 
   const columns: ColumnsType<Document> = [
     {
-      title: '文档名称',
+      title: uiText.document.colName,
       dataIndex: 'name',
       key: 'name',
       ellipsis: true,
@@ -114,7 +114,7 @@ export default function DocumentPage() {
       ),
     },
     {
-      title: '大小',
+      title: uiText.document.colSize,
       dataIndex: 'fileSize',
       key: 'fileSize',
       width: 100,
@@ -125,7 +125,7 @@ export default function DocumentPage() {
       },
     },
     {
-      title: '状态',
+      title: uiText.document.colStatus,
       dataIndex: 'status',
       key: 'status',
       width: 100,
@@ -136,14 +136,14 @@ export default function DocumentPage() {
       ),
     },
     {
-      title: '上传时间',
+      title: uiText.document.colUploadTime,
       dataIndex: 'createTime',
       key: 'createTime',
       width: 180,
       render: (time: string) => dayjs(time).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
-      title: '操作',
+      title: uiText.document.colActions,
       key: 'actions',
       width: 150,
       render: (_, record) => (
@@ -152,26 +152,26 @@ export default function DocumentPage() {
             type="link"
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => handlePreview(record)}
+            onClick={() => { handlePreview(record); }}
             disabled={record.status !== DocumentStatus.Completed}
           >
-            预览
+            {uiText.common.preview}
           </Button>
           <Button
             type="link"
             size="small"
             danger
             icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record)}
+            onClick={() => { handleDelete(record); }}
           >
-            删除
+            {uiText.common.delete}
           </Button>
         </Space>
       ),
     },
   ]
 
-  const filteredData = data?.items.filter((doc) => {
+  const filteredData = data?.items.filter((doc: Document) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchText.toLowerCase())
     const matchesStatus = statusFilter === null || doc.status === statusFilter
     return matchesSearch && matchesStatus
@@ -180,26 +180,26 @@ export default function DocumentPage() {
   return (
     <div className="document-page">
       <div className="document-header">
-        <Title level={3}>文档管理</Title>
+        <Title level={3}>{uiText.document.pageTitle}</Title>
         <Space>
           <Input
-            placeholder="搜索文档名称"
+            placeholder={uiText.document.searchPlaceholder}
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => { setSearchText(e.target.value); }}
             style={{ width: 240 }}
           />
           <Select
-            placeholder="筛选状态"
+            placeholder={uiText.document.filterStatus}
             style={{ width: 120 }}
             allowClear
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { label: '待处理', value: DocumentStatus.Pending },
-              { label: '处理中', value: DocumentStatus.Processing },
-              { label: '已完成', value: DocumentStatus.Completed },
-              { label: '失败', value: DocumentStatus.Failed },
+              { label: uiText.document.pending, value: DocumentStatus.Pending },
+              { label: uiText.document.processing, value: DocumentStatus.Processing },
+              { label: uiText.document.completed, value: DocumentStatus.Completed },
+              { label: uiText.document.failed, value: DocumentStatus.Failed },
             ]}
           />
         </Space>
@@ -216,9 +216,9 @@ export default function DocumentPage() {
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+          <p className="ant-upload-text">{uiText.document.uploadHint}</p>
           <p className="ant-upload-hint">
-            支持 PDF、Word、TXT 格式，单个文件最大 50MB
+            {uiText.document.uploadSupport}
           </p>
         </Dragger>
 
@@ -254,29 +254,29 @@ export default function DocumentPage() {
             setPageSize(newPageSize || 20)
           },
           showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 个文档`,
+          showTotal: (total) => formatText(uiText.document.totalDocs, { total }),
         }}
       />
 
       {/* Preview Modal */}
       <Modal
-        title="文档预览"
+        title={uiText.document.previewTitle}
         open={!!previewDoc}
-        onCancel={() => setPreviewDoc(null)}
+        onCancel={() => { setPreviewDoc(null); }}
         width={800}
         footer={null}
       >
         {previewDoc && (
           <div>
-            <Text strong>文档名称：</Text> {previewDoc.name}
+            <Text strong>{uiText.document.fieldName}</Text> {previewDoc.name}
             <br />
-            <Text strong>文件大小：</Text> {(previewDoc.fileSize / 1024 / 1024).toFixed(2)} MB
+            <Text strong>{uiText.document.fieldSize}</Text> {(previewDoc.fileSize / 1024 / 1024).toFixed(2)} MB
             <br />
-            <Text strong>上传时间：</Text> {dayjs(previewDoc.createTime).format('YYYY-MM-DD HH:mm:ss')}
+            <Text strong>{uiText.document.fieldUploadTime}</Text> {dayjs(previewDoc.createTime).format('YYYY-MM-DD HH:mm:ss')}
             <br />
             <div style={{ marginTop: 16 }}>
               {/* TODO: Add document preview iframe or PDF viewer */}
-              <Text type="secondary">文档预览功能开发中...</Text>
+              <Text type="secondary">{uiText.document.previewDeveloping}</Text>
             </div>
           </div>
         )}

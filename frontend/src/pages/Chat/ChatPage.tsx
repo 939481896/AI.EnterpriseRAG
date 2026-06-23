@@ -5,7 +5,7 @@ import { useSendMessage, useSessions, useSessionMessages } from '@/hooks/useChat
 import { useChatStore } from '@/store/chatStore'
 import ChatMessage from '@/components/Chat/ChatMessage'
 import SessionSidebar from '@/components/Chat/SessionSidebar'
-import './ChatPage.css'
+import { uiText } from '@/config/uiText'
 
 const { Content, Sider } = Layout
 const { TextArea } = Input
@@ -68,15 +68,15 @@ export default function ChatPage() {
           {/* Header */}
           <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0f0f0' }}>
             <Space split={<Divider type="vertical" />}>
-              <span style={{ fontWeight: 500 }}>智能问答</span>
+              <span style={{ fontWeight: 500 }}>{uiText.chat.pageTitle}</span>
               <Select
                 value={ragVersion}
                 onChange={setRagVersion}
                 style={{ width: 120 }}
                 size="small"
                 options={[
-                  { value: 'v0', label: 'RAG V0 (基础版)' },
-                  { value: 'v1', label: 'RAG V1 (增强版)' },
+                  { value: 'v0', label: uiText.chat.ragV0Label },
+                  { value: 'v1', label: uiText.chat.ragV1Label },
                 ]}
               />
             </Space>
@@ -93,12 +93,12 @@ export default function ChatPage() {
           >
             {loadingMessages ? (
               <div style={{ textAlign: 'center', padding: 60 }}>
-                <Spin size="large" tip="加载会话记录中..." />
+                <Spin size="large" tip={uiText.chat.loadingHistory} />
               </div>
             ) : messages.length === 0 ? (
               <Empty
                 image={<RobotOutlined style={{ fontSize: 64, color: '#1890ff' }} />}
-                description="暂无对话记录，开始提问吧！"
+                description={uiText.chat.emptyDescription}
                 style={{ marginTop: '20%' }}
               />
             ) : (
@@ -108,7 +108,7 @@ export default function ChatPage() {
                 ))}
                 {isStreaming && (
                   <div style={{ textAlign: 'center', padding: 20 }}>
-                    <Spin tip="AI 正在思考..." />
+                    <Spin tip={uiText.chat.generating} />
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -127,9 +127,9 @@ export default function ChatPage() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <TextArea
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => { setInputValue(e.target.value); }}
                 onKeyDown={handleKeyPress}
-                placeholder="输入问题... (Shift+Enter 换行，Enter 发送)"
+                placeholder={uiText.chat.inputPlaceholder}
                 autoSize={{ minRows: 1, maxRows: 4 }}
                 style={{ flex: 1 }}
                 disabled={isStreaming || sendMessage.isPending}
@@ -142,11 +142,11 @@ export default function ChatPage() {
                 disabled={!inputValue.trim()}
                 size="large"
               >
-                发送
+                {uiText.chat.sending}
               </Button>
             </div>
             <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 12 }}>
-              💡 提示：本系统基于文档知识库回答问题，回答仅供参考
+              💡 {uiText.chat.hint}
             </div>
           </div>
         </Content>

@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { ApiResponse } from '@/types/auth'
+import type { ApiResponse } from '@/types/api'
 
 // ==================== Types ====================
 export interface Permission {

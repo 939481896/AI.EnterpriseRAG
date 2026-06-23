@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Input, List, Empty, Dropdown, Typography, Spin, Modal } from 'antd'
+import { Button, Input, Empty, Dropdown, Typography, Spin, Modal } from 'antd'
 import {
   PlusOutlined,
   MessageOutlined,
@@ -16,10 +16,10 @@ import type { ConversationSession } from '@/types/chat'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
+import { formatText, uiText } from '@/config/uiText'
 import './SessionSidebar.css'
 
 dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 const { Text } = Typography
 const { confirm } = Modal
@@ -47,7 +47,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
     // Messages will be loaded by useSessionMessages hook in ChatPage
   }
 
-  const handleStartEdit = (session: ConversationSession, e: React.MouseEvent) => {
+  const handleStartEdit = (session: ConversationSession, e: { stopPropagation: () => void }) => {
     e.stopPropagation()
     setEditingId(session.id)
     setEditTitle(session.title)
@@ -76,16 +76,20 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
     setEditTitle('')
   }
 
-  const handleDelete = (sessionId: string, sessionTitle: string, e: React.MouseEvent) => {
+  const handleDelete = (
+    sessionId: string,
+    sessionTitle: string,
+    e: { stopPropagation: () => void }
+  ) => {
     e.stopPropagation()
 
     confirm({
-      title: '确认删除会话？',
+      title: uiText.session.deleteConfirmTitle,
       icon: <ExclamationCircleOutlined />,
-      content: `确定要删除会话"${sessionTitle}"吗？此操作不可恢复。`,
-      okText: '删除',
+      content: formatText(uiText.session.deleteConfirmContent, { title: sessionTitle }),
+      okText: uiText.common.delete,
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: uiText.common.cancel,
       onOk() {
         deleteSession.mutate(sessionId)
         // If deleting current session, clear it
@@ -136,9 +140,9 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
             <Input
               size="small"
               value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
+              onChange={(e) => { setEditTitle(e.target.value); }}
               onPressEnter={handleSaveEdit}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); }}
               autoFocus
             />
           ) : (
@@ -147,7 +151,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
         </div>
 
         {isEditing ? (
-          <div className="session-actions" onClick={(e) => e.stopPropagation()}>
+          <div className="session-actions" onClick={(e) => { e.stopPropagation(); }}>
             <CheckOutlined onClick={handleSaveEdit} style={{ color: '#52c41a' }} />
             <CloseOutlined onClick={handleCancelEdit} style={{ color: '#ff4d4f' }} />
           </div>
@@ -158,7 +162,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
                 {
                   key: 'edit',
                   icon: <EditOutlined />,
-                  label: '重命名',
+                  label: uiText.session.rename,
                   onClick: (info) => {
                     info.domEvent.stopPropagation()
                     handleStartEdit(session, info.domEvent)
@@ -167,7 +171,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
                 {
                   key: 'delete',
                   icon: <DeleteOutlined />,
-                  label: '删除',
+                  label: uiText.common.delete,
                   danger: true,
                   onClick: (info) => {
                     info.domEvent.stopPropagation()
@@ -180,7 +184,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
           >
             <EllipsisOutlined
               className="session-menu"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); }}
             />
           </Dropdown>
         )}
@@ -193,7 +197,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
       <div className="session-sidebar">
         <div className="session-header">
           <Button type="primary" icon={<PlusOutlined />} block disabled>
-            新建对话
+            {uiText.session.newChat}
           </Button>
         </div>
         <div style={{ textAlign: 'center', padding: 40 }}>
@@ -212,7 +216,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
           onClick={handleNewChat}
           block
         >
-          新建对话
+          {uiText.session.newChat}
         </Button>
       </div>
 
@@ -220,7 +224,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
         {sessions.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="暂无会话记录"
+            description={uiText.session.empty}
             style={{ marginTop: 60 }}
           />
         ) : (
@@ -228,7 +232,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
             {groupedSessions.today.length > 0 && (
               <div className="session-group">
                 <Text type="secondary" className="session-group-title">
-                  今天
+                  {uiText.session.today}
                 </Text>
                 {groupedSessions.today.map(renderSessionItem)}
               </div>
@@ -237,7 +241,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
             {groupedSessions.yesterday.length > 0 && (
               <div className="session-group">
                 <Text type="secondary" className="session-group-title">
-                  昨天
+                  {uiText.session.yesterday}
                 </Text>
                 {groupedSessions.yesterday.map(renderSessionItem)}
               </div>
@@ -246,7 +250,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
             {groupedSessions.thisWeek.length > 0 && (
               <div className="session-group">
                 <Text type="secondary" className="session-group-title">
-                  过去7天
+                  {uiText.session.thisWeek}
                 </Text>
                 {groupedSessions.thisWeek.map(renderSessionItem)}
               </div>
@@ -255,7 +259,7 @@ export default function SessionSidebar({ sessions, loading }: SessionSidebarProp
             {groupedSessions.older.length > 0 && (
               <div className="session-group">
                 <Text type="secondary" className="session-group-title">
-                  更早
+                  {uiText.session.older}
                 </Text>
                 {groupedSessions.older.map(renderSessionItem)}
               </div>

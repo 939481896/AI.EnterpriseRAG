@@ -1,18 +1,68 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import { PermissionProvider } from './contexts/PermissionContext'
 import AppLayout from './components/Layout/AppLayout'
-import LoginPage from './pages/Auth/LoginPage'
-import RegisterPage from './pages/Auth/RegisterPage'
-import ChatPage from './pages/Chat/ChatPage'
-import DocumentPage from './pages/Document/DocumentPage'
-import AgentWorkspace from './pages/Agent/AgentWorkspace'
-import Dashboard from './pages/Admin/Dashboard'
-import UserManagement from './pages/Admin/UserManagement'
-import RoleManagement from './pages/Admin/RoleManagement'
-import PermissionManagement from './pages/Admin/PermissionManagement'
-import RBACDebug from './pages/Admin/RBACDebug'
+import { getRouteConfigs } from './config/modules'
+
+type ComponentProps = object
+
+type PreloadableLazy<T extends React.ComponentType<ComponentProps>> = React.LazyExoticComponent<T> & {
+  preload: () => Promise<{ default: T }>
+}
+
+function lazyWithPreload<T extends React.ComponentType<ComponentProps>>(
+  factory: () => Promise<{ default: T }>
+): PreloadableLazy<T> {
+  const Component = lazy(factory) as PreloadableLazy<T>
+  Component.preload = factory
+  return Component
+}
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+  cancelIdleCallback?: (handle: number) => void
+}
+
+// ✅ Loading fallback component
+const PageLoadingFallback = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    fontSize: '18px',
+    color: '#666',
+  }}>
+    Loading...
+  </div>
+)
+
+const ProtectedContentLoadingFallback = () => (
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: 280,
+      color: '#666',
+      fontSize: 14,
+    }}
+  >
+    Loading...
+  </div>
+)
+
+// ✅ Public routes (lazy loaded)
+const LoginPage = lazyWithPreload(() => import('./pages/Auth/LoginPage'))
+const RegisterPage = lazyWithPreload(() => import('./pages/Auth/RegisterPage'))
+
+// ✅ Protected routes are now dynamically generated from module registry
+const routeConfigs = getRouteConfigs()
+const protectedPages = routeConfigs.map((config) => {
+  const component = config.component as PreloadableLazy<React.ComponentType<any>>
+  return component
+})
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -25,6 +75,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, validateToken, logout])
 
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const preloadAll = () => {
+      protectedPages.forEach((page) => {
+        if (page && typeof (page as any).preload === 'function') {
+          void (page as any).preload()
+        }
+      })
+    }
+
+    // Preload page chunks in idle time to avoid first-open route flashing.
+    const idleWindow = window as IdleWindow
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const idleId = idleWindow.requestIdleCallback(preloadAll, { timeout: 1500 })
+      return () => {
+        if (typeof idleWindow.cancelIdleCallback === 'function') {
+          idleWindow.cancelIdleCallback(idleId)
+        }
+      }
+    }
+
+    const timer = setTimeout(preloadAll, 300)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [isAuthenticated])
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
@@ -35,35 +113,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
-        {/* Protected routes */}
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <PermissionProvider>
-                <AppLayout>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/chat" replace />} />
-                    <Route path="/chat" element={<ChatPage />} />
-                    <Route path="/documents" element={<DocumentPage />} />
-                    <Route path="/agent" element={<AgentWorkspace />} />
-                    <Route path="/admin/dashboard" element={<Dashboard />} />
-                    <Route path="/admin/users" element={<UserManagement />} />
-                    <Route path="/admin/roles" element={<RoleManagement />} />
-                    <Route path="/admin/permissions" element={<PermissionManagement />} />
-                    <Route path="/admin/debug-rbac" element={<RBACDebug />} />
-                  </Routes>
-                </AppLayout>
-              </PermissionProvider>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+          {/* Protected routes */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <PermissionProvider>
+                  <AppLayout>
+                    <Suspense fallback={<ProtectedContentLoadingFallback />}>
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/chat" replace />} />
+                        {routeConfigs.map((config) => (
+                          <Route key={config.id} path={config.path} element={<config.component />} />
+                        ))}
+                      </Routes>
+                    </Suspense>
+                  </AppLayout>
+                </PermissionProvider>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

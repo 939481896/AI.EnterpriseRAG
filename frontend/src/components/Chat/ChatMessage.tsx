@@ -3,8 +3,9 @@ import { UserOutlined, RobotOutlined, CopyOutlined, LikeOutlined, DislikeOutline
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import copy from 'copy-to-clipboard'
-import { message } from 'antd'
 import type { Message } from '@/types/chat'
+import { notification } from '@/services/notification'
+import { uiText, formatText } from '@/config/uiText'
 import './ChatMessage.css'
 
 const { Text } = Typography
@@ -20,11 +21,11 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
 
   const handleCopy = () => {
     copy(message.content)
-    message.success('已复制到剪贴板')
+    notification.success(uiText.chat.copySuccess)
   }
 
   const handleCitationClick = (index: number) => {
-    message.info(`查看引用 [${index + 1}]`)
+    notification.info(formatText(uiText.chat.citationPreview, { index: index + 1 }))
     // TODO: Open citation preview modal
   }
 
@@ -49,8 +50,9 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
                 className="markdown-body"
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  code({ node, inline, className, children, ...props }) {
-                    return inline ? (
+                  code({ className, children, ...props }) {
+                    const isInline = !className
+                    return isInline ? (
                       <code className={className} {...props}>
                         {children}
                       </code>
@@ -71,7 +73,7 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
               {message.references && message.references.length > 0 && (
                 <div className="message-citations">
                   <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>
-                    📚 参考来源：
+                    📚 {uiText.chat.references}
                   </Text>
                   <Space wrap size={[4, 8]}>
                     {message.references.map((ref, index) => (
@@ -79,7 +81,7 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
                         key={index}
                         color="blue"
                         style={{ cursor: 'pointer', margin: 0 }}
-                        onClick={() => handleCitationClick(index)}
+                        onClick={() => { handleCitationClick(index); }}
                       >
                         [{index + 1}] {ref.substring(0, 30)}...
                       </Tag>
@@ -116,7 +118,7 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
                       icon={<ReloadOutlined />}
                       onClick={() => onRegenerate?.(message.id)}
                     >
-                      重新生成
+                      {uiText.chat.regenerate}
                     </Button>
                   </Space>
                 </div>
@@ -133,7 +135,7 @@ export default function ChatMessage({ message, onRegenerate, onFeedback }: ChatM
               minute: '2-digit',
             })}
             {message.costSeconds && (
-              <> • 耗时 {message.costSeconds.toFixed(2)}s</>
+              <> • {uiText.chat.costSeconds} {message.costSeconds.toFixed(2)}s</>
             )}
           </Text>
         </div>

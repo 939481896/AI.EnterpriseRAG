@@ -1,5 +1,6 @@
 import apiClient from './client'
-import type { Document, DocumentCategory, ApiResponse } from '@/types/document'
+import type { Document, DocumentCategory } from '@/types/document'
+import type { ApiResponse } from '@/types/api'
 
 export const documentApi = {
   /**

@@ -25,7 +25,7 @@ export interface UploadProgressInfo {
   file: File
   progress: number
   status: 'uploading' | 'success' | 'error'
-  response?: any
+  response?: unknown
   error?: string
 }
 

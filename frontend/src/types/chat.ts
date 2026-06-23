@@ -37,9 +37,4 @@ export interface StreamingChunk {
   done: boolean
 }
 
-export interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  message?: string
-  code?: number
-}
+export type { ApiResponse } from '@/types/api'

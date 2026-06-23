@@ -10,10 +10,18 @@ export interface AgentStep {
   type: 'thinking' | 'action' | 'observation' | 'final' | 'error'
   content: string
   tool?: string
-  args?: Record<string, any>
-  result?: any
+  args?: Record<string, unknown>
+  result?: unknown
   duration?: number
   timestamp: Date
+}
+
+interface AgentStepPayload extends Omit<AgentStep, 'timestamp'> {
+  timestamp?: string | number
+}
+
+interface AgentErrorPayload {
+  message?: string
 }
 
 export interface IntentRecognitionResult {
@@ -55,9 +63,11 @@ export async function executeAgent(
   }
 
   try {
-    while (true) {
+    let doneReading = false
+    while (!doneReading) {
       const { done, value } = await reader.read()
       if (done) {
+        doneReading = true
         onComplete?.()
         break
       }
@@ -73,17 +83,19 @@ export async function executeAgent(
         if (eventMatch) {
           const [, eventType, dataStr] = eventMatch
           try {
-            const data = JSON.parse(dataStr)
+            const data = JSON.parse(dataStr) as unknown
 
             if (eventType === 'intent') {
-              onIntent?.(data)
+              onIntent?.(data as IntentRecognitionResult)
             } else if (eventType === 'step') {
+              const stepData = data as AgentStepPayload
               onStep({
-                ...data,
-                timestamp: new Date(data.timestamp || Date.now()),
+                ...stepData,
+                timestamp: new Date(stepData.timestamp || Date.now()),
               })
             } else if (eventType === 'error') {
-              onError?.(data.message || 'Unknown error')
+              const errorData = data as AgentErrorPayload
+              onError?.(errorData.message || 'Unknown error')
             } else if (eventType === 'complete') {
               onComplete?.()
             }
@@ -104,9 +116,8 @@ export async function executeAgent(
 /**
  * Execute Agent task synchronously (for testing, not streaming)
  */
-export async function executeAgentSync(request: AgentExecuteRequest) {
-  const response = await apiClient.post('/api/agent/execute-sync', request)
-  return response.data
+export async function executeAgentSync(request: AgentExecuteRequest): Promise<unknown> {
+  return apiClient.post('/api/agent/execute-sync', request)
 }
 
 export const agentApi = {

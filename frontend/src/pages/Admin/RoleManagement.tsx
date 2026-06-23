@@ -11,7 +11,6 @@ import {
   Popconfirm,
   Drawer,
   Tree,
-  message,
   Spin,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons'
@@ -26,7 +25,9 @@ import {
   useGroupedPermissions,
 } from '@/hooks/usePermission'
 import { PermissionGuard } from '@/contexts/PermissionContext'
-import type { Role } from '@/api/permission'
+import type { Permission, Role } from '@/api/permission'
+import { uiText, formatText } from '@/config/uiText'
+import { useLocaleStore } from '@/store/localeStore'
 
 const RoleManagement: React.FC = () => {
   const [form] = Form.useForm()
@@ -36,6 +37,7 @@ const RoleManagement: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<Role | null>(null)
   const [currentRoleId, setCurrentRoleId] = useState<number | null>(null)
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([])
+  const locale = useLocaleStore((state) => state.locale)
 
   const { data: roles = [], isLoading } = useRoles()
   const { data: roleDetail, isLoading: isLoadingRoleDetail } = useRole(currentRoleId)
@@ -48,7 +50,7 @@ const RoleManagement: React.FC = () => {
   // 当角色详情加载完成后，设置已选中的权限
   useEffect(() => {
     if (roleDetail && roleDetail.permissions) {
-      const permissionIds = roleDetail.permissions.map((p: any) => p.id)
+      const permissionIds = roleDetail.permissions.map((p: Permission) => p.id)
       console.log('Setting selected permissions from role detail:', permissionIds)
       setSelectedPermissions(permissionIds)
     }
@@ -66,17 +68,17 @@ const RoleManagement: React.FC = () => {
       const permArray = Array.isArray(permissions) ? permissions : []
 
       return {
-        title: module || '其他',
+        title: module || uiText.adminRole.othersModule,
         key: module,
         selectable: false,
-        children: permArray.map((p: any) => ({
+        children: permArray.map((p: Permission) => ({
           title: `${p.name} (${p.code})`,
           key: p.id,
           isLeaf: true,
         })),
       }
     })
-  }, [groupedPermissions])
+  }, [groupedPermissions, locale])
 
   const handleCreate = () => {
     setEditingRole(null)
@@ -109,35 +111,35 @@ const RoleManagement: React.FC = () => {
   // Memoize columns to prevent infinite re-renders
   const columns: ColumnsType<Role> = React.useMemo(() => [
     {
-      title: '角色名称',
+      title: uiText.adminRole.roleName,
       dataIndex: 'roleName',
       key: 'roleName',
     },
     {
-      title: '角色代码',
+      title: uiText.adminRole.roleCode,
       dataIndex: 'roleCode',
       key: 'roleCode',
       render: (code: string) => <Tag color="blue">{code}</Tag>,
     },
     {
-      title: '描述',
+      title: uiText.adminRole.description,
       dataIndex: 'description',
       key: 'description',
     },
     {
-      title: '用户数',
+      title: uiText.adminRole.userCount,
       dataIndex: 'userCount',
       key: 'userCount',
       render: (count: number) => count || 0,
     },
     {
-      title: '权限数',
+      title: uiText.adminRole.permissionCount,
       dataIndex: 'permissionCount',
       key: 'permissionCount',
       render: (count: number) => count || 0,
     },
     {
-      title: '操作',
+      title: uiText.adminUser.actions,
       key: 'action',
       render: (_, record) => (
         <Space size="small">
@@ -146,9 +148,9 @@ const RoleManagement: React.FC = () => {
               type="link"
               size="small"
               icon={<KeyOutlined />}
-              onClick={() => handleAssignPermissions(record)}
+              onClick={() => { handleAssignPermissions(record); }}
             >
-              分配权限
+              {uiText.adminRole.assignPermissions}
             </Button>
           </PermissionGuard>
           <PermissionGuard permission="role.update">
@@ -156,16 +158,16 @@ const RoleManagement: React.FC = () => {
               type="link"
               size="small"
               icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
+              onClick={() => { handleEdit(record); }}
               disabled={record.roleCode === 'admin'}
             >
-              编辑
+              {uiText.common.edit}
             </Button>
           </PermissionGuard>
           <PermissionGuard permission="role.delete">
             <Popconfirm
-              title="确认删除"
-              description={`确定要删除角色 "${record.roleName}" 吗？`}
+              title={uiText.common.delete}
+              description={formatText(uiText.adminRole.deleteConfirm, { name: record.roleName })}
               onConfirm={() => handleDelete(record.id)}
               disabled={record.roleCode === 'admin'}
             >
@@ -176,14 +178,14 @@ const RoleManagement: React.FC = () => {
                 icon={<DeleteOutlined />}
                 disabled={record.roleCode === 'admin'}
               >
-                删除
+                {uiText.common.delete}
               </Button>
             </Popconfirm>
           </PermissionGuard>
         </Space>
       ),
     },
-  ], []) // Empty deps since handlers are stable
+  ], [locale])
 
   const handleModalOk = async () => {
     try {
@@ -231,11 +233,11 @@ const RoleManagement: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Card
-        title="角色管理"
+        title={uiText.adminRole.title}
         extra={
           <PermissionGuard permission="role.create">
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              新建角色
+              {uiText.adminRole.create}
             </Button>
           </PermissionGuard>
         }
@@ -248,14 +250,14 @@ const RoleManagement: React.FC = () => {
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
+            showTotal: (total) => formatText(uiText.adminRole.totalRows, { total }),
           }}
         />
       </Card>
 
       {/* Create/Edit Modal */}
       <Modal
-        title={editingRole ? '编辑角色' : '新建角色'}
+        title={editingRole ? uiText.adminRole.edit : uiText.adminRole.create}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
@@ -264,48 +266,48 @@ const RoleManagement: React.FC = () => {
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
           <Form.Item
             name="roleName"
-            label="角色名称"
-            rules={[{ required: true, message: '请输入角色名称' }]}
+            label={uiText.adminRole.roleName}
+            rules={[{ required: true, message: uiText.adminRole.inputRoleName }]}
           >
-            <Input placeholder="如：部门经理" />
+            <Input placeholder={uiText.adminRole.roleNamePlaceholder} />
           </Form.Item>
 
           <Form.Item
             name="roleCode"
-            label="角色代码"
+            label={uiText.adminRole.roleCode}
             rules={[
-              { required: true, message: '请输入角色代码' },
-              { pattern: /^[a-z_]+$/, message: '仅支持小写字母和下划线' },
+              { required: true, message: uiText.adminRole.inputRoleCode },
+              { pattern: /^[a-z_]+$/, message: uiText.adminRole.roleCodePattern },
             ]}
           >
             <Input
-              placeholder="如：dept_manager"
+              placeholder={uiText.adminRole.roleCodePlaceholder}
               disabled={!!editingRole && editingRole.roleCode === 'admin'}
             />
           </Form.Item>
 
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="角色描述（可选）" />
+          <Form.Item name="description" label={uiText.adminRole.description}>
+            <Input.TextArea rows={3} placeholder={uiText.adminRole.descriptionPlaceholder} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Permission Assignment Drawer */}
       <Drawer
-        title={`为 "${currentRole?.roleName}" 分配权限`}
+        title={formatText(uiText.adminRole.assignDrawerTitle, { name: currentRole?.roleName || '' })}
         placement="right"
         width={500}
         open={isPermissionDrawerOpen}
         onClose={handlePermissionDrawerClose}
         extra={
           <Space>
-            <Button onClick={handlePermissionDrawerClose}>取消</Button>
+            <Button onClick={handlePermissionDrawerClose}>{uiText.common.cancel}</Button>
             <Button
               type="primary"
               onClick={handleSavePermissions}
               loading={assignPermissions.isPending}
             >
-              保存
+              {uiText.common.save}
             </Button>
           </Space>
         }
@@ -314,18 +316,18 @@ const RoleManagement: React.FC = () => {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <Spin />
             <div style={{ marginTop: 16 }}>
-              {isLoadingRoleDetail ? '加载角色权限中...' : '加载权限数据中...'}
+              {isLoadingRoleDetail ? uiText.adminRole.loadingRolePermissions : uiText.adminRole.loadingPermissions}
             </div>
           </div>
         ) : permissionTreeData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-            <p>暂无权限数据</p>
-            <p style={{ fontSize: 12 }}>请检查后端权限是否已初始化</p>
+            <p>{uiText.adminRole.emptyPermissions}</p>
+            <p style={{ fontSize: 12 }}>{uiText.adminRole.emptyPermissionsHint}</p>
           </div>
         ) : (
           <>
             <div style={{ marginBottom: 16, color: '#666' }}>
-              已选择 {selectedPermissions.length} 个权限
+              {formatText(uiText.adminRole.selectedPermissionCount, { count: selectedPermissions.length })}
             </div>
             <Tree
               checkable

@@ -9,7 +9,6 @@ import {
   Space,
   Alert,
   Empty,
-  message,
 } from 'antd'
 import {
   ThunderboltOutlined,
@@ -21,7 +20,9 @@ import {
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import { agentApi, type AgentStep, type IntentRecognitionResult } from '@/api/agent'
-import './AgentWorkspace.css'
+import { uiText, formatText } from '@/config/uiText'
+import { notification } from '@/services/notification'
+import { getErrorMessage } from '@/types/error'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -56,17 +57,17 @@ export default function AgentWorkspace() {
         // onComplete callback
         () => {
           setLoading(false)
-          message.success('Agent 任务完成')
+          notification.success(uiText.agent.taskCompleted)
         },
         // onError callback
         (error) => {
           setLoading(false)
-          message.error(`Agent 执行失败: ${error}`)
+          notification.error(`${uiText.agent.executeFailed}: ${error}`)
         }
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLoading(false)
-      message.error(error.message || 'Agent 执行失败')
+      notification.error(getErrorMessage(error) || uiText.agent.executeFailed)
     }
   }
 
@@ -104,16 +105,16 @@ export default function AgentWorkspace() {
 
   return (
     <div className="agent-workspace">
-      <Title level={3}>🤖 Agent 工作区</Title>
+      <Title level={3}>🤖 {uiText.agent.pageTitle}</Title>
       <Paragraph type="secondary">
-        智能 Agent 可以自动选择工具、执行任务并生成结果。支持 RAG 搜索、数据查询、日志分析等功能。
+        {uiText.agent.pageDescription}
       </Paragraph>
 
       <Card className="input-card">
         <TextArea
-          placeholder="输入您的需求，例如：查询上个月订单数量最多的产品"
+          placeholder={uiText.agent.inputPlaceholder}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => { setInput(e.target.value); }}
           autoSize={{ minRows: 3, maxRows: 6 }}
           disabled={loading}
         />
@@ -126,30 +127,30 @@ export default function AgentWorkspace() {
             loading={loading}
             disabled={!input.trim()}
           >
-            执行
+            {uiText.agent.execute}
           </Button>
         </div>
       </Card>
 
       {intent && (
         <Alert
-          message="意图识别"
+          message={uiText.agent.intentTitle}
           description={
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
-                <Text strong>类型：</Text>
+                <Text strong>{uiText.agent.intentType}</Text>
                 <Tag color="blue" style={{ marginLeft: 8 }}>
                   {intent.type}
                 </Tag>
               </div>
               <div>
-                <Text strong>置信度：</Text>
+                <Text strong>{uiText.agent.intentConfidence}</Text>
                 <Tag color="green" style={{ marginLeft: 8 }}>
                   {(intent.confidence * 100).toFixed(0)}%
                 </Tag>
               </div>
               <div>
-                <Text strong>推理：</Text> {intent.reasoning}
+                <Text strong>{uiText.agent.intentReasoning}</Text> {intent.reasoning}
               </div>
             </Space>
           }
@@ -164,10 +165,10 @@ export default function AgentWorkspace() {
         <Card
           title={
             <Space>
-              <span>执行流程</span>
+              <span>{uiText.agent.executionFlow}</span>
               {totalDuration > 0 && (
                 <Tag color="processing">
-                  总耗时: {totalDuration.toFixed(2)}s
+                  {formatText(uiText.agent.totalCost, { seconds: totalDuration.toFixed(2) })}
                 </Tag>
               )}
             </Space>
@@ -183,10 +184,10 @@ export default function AgentWorkspace() {
                   <div className="step-header">
                     <Space>
                       <Text strong>
-                        {index + 1}. {step.type === 'thinking' && '💭 Thinking'}
-                        {step.type === 'action' && '🔧 Action'}
-                        {step.type === 'observation' && '📊 Observation'}
-                        {step.type === 'final' && '✅ Final Answer'}
+                        {index + 1}. {step.type === 'thinking' && `💭 ${uiText.agent.stepThinking}`}
+                        {step.type === 'action' && `🔧 ${uiText.agent.stepAction}`}
+                        {step.type === 'observation' && `📊 ${uiText.agent.stepObservation}`}
+                        {step.type === 'final' && `✅ ${uiText.agent.stepFinal}`}
                       </Text>
                       {step.duration && (
                         <Tag color="default">{step.duration.toFixed(2)}s</Tag>
@@ -197,7 +198,7 @@ export default function AgentWorkspace() {
                   <div className="step-body">
                     {step.type === 'action' && step.tool && (
                       <div className="action-details">
-                        <Text type="secondary">工具：</Text>
+                        <Text type="secondary">{uiText.agent.toolLabel}</Text>
                         <Tag color="blue">{step.tool}</Tag>
                         {step.args && (
                           <pre className="code-block">
@@ -207,13 +208,13 @@ export default function AgentWorkspace() {
                       </div>
                     )}
 
-                    {step.type === 'observation' && step.result && (
+                    {step.type === 'observation' && Boolean(step.result) ? (
                       <div className="observation-result">
                         <pre className="code-block">
                           {JSON.stringify(step.result, null, 2)}
                         </pre>
                       </div>
-                    )}
+                    ) : null}
 
                     {step.type === 'final' ? (
                       <div className="final-answer">
@@ -232,7 +233,7 @@ export default function AgentWorkspace() {
 
       {!loading && steps.length === 0 && !intent && (
         <Empty
-          description="输入需求并点击执行，Agent 将自动完成任务"
+          description={uiText.agent.emptyDescription}
           style={{ marginTop: 60 }}
         />
       )}

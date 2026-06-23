@@ -1,7 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { message } from 'antd'
 import { roleApi, permissionApi, userRoleApi } from '@/api/permission'
 import type { Permission } from '@/api/permission'
+import { notification } from '@/services/notification'
+import { uiText } from '@/config/uiText'
+import { getErrorMessage } from '@/types/error'
+import { queryKeys } from '@/config/queryKeys'
+
+/**
+ * RBAC hooks module.
+ *
+ * Design notes:
+ * - Read operations use React Query cache with long staleTime.
+ * - Mutations use local notifications and silentError to avoid duplicate global toasts.
+ * - Keys are centralized through queryKeys to keep invalidation consistent.
+ */
 
 // ==================== Role Hooks ====================
 
@@ -10,7 +22,7 @@ import type { Permission } from '@/api/permission'
  */
 export function useRoles() {
   return useQuery({
-    queryKey: ['roles'],
+    queryKey: queryKeys.permission.roles,
     queryFn: async () => {
       const response = await roleApi.getRoles()
       return response.data || []
@@ -25,7 +37,7 @@ export function useRoles() {
  */
 export function useRole(roleId: number | null) {
   return useQuery({
-    queryKey: ['role', roleId],
+    queryKey: queryKeys.permission.role(roleId),
     queryFn: async () => {
       if (!roleId) return null
       const response = await roleApi.getRole(roleId)
@@ -43,14 +55,15 @@ export function useCreateRole() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (data: { roleName: string; roleCode: string; description?: string }) =>
       roleApi.createRole(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      message.success('角色创建成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.roles })
+      notification.success(uiText.feedback.roleCreateSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '创建失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.createFailed)
     },
   })
 }
@@ -62,6 +75,7 @@ export function useUpdateRole() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: ({
       roleId,
       data,
@@ -70,12 +84,12 @@ export function useUpdateRole() {
       data: { roleName: string; roleCode: string; description?: string }
     }) => roleApi.updateRole(roleId, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      queryClient.invalidateQueries({ queryKey: ['role', variables.roleId] })
-      message.success('角色更新成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.roles })
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.role(variables.roleId) })
+      notification.success(uiText.feedback.roleUpdateSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '更新失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.updateFailed)
     },
   })
 }
@@ -87,13 +101,14 @@ export function useDeleteRole() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (roleId: number) => roleApi.deleteRole(roleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      message.success('角色删除成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.roles })
+      notification.success(uiText.feedback.roleDeleteSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '删除失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.deleteFailed)
     },
   })
 }
@@ -105,15 +120,16 @@ export function useAssignRolePermissions() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: ({ roleId, permissionIds }: { roleId: number; permissionIds: number[] }) =>
       roleApi.assignPermissions(roleId, permissionIds),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      queryClient.invalidateQueries({ queryKey: ['role', variables.roleId] })
-      message.success('权限分配成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.roles })
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.role(variables.roleId) })
+      notification.success(uiText.feedback.permissionAssignSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '分配失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.assignFailed)
     },
   })
 }
@@ -125,7 +141,7 @@ export function useAssignRolePermissions() {
  */
 export function usePermissions() {
   return useQuery({
-    queryKey: ['permissions'],
+    queryKey: queryKeys.permission.permissions,
     queryFn: async () => {
       const response = await permissionApi.getPermissions()
       return response.data || []
@@ -140,7 +156,7 @@ export function usePermissions() {
  */
 export function useGroupedPermissions() {
   return useQuery({
-    queryKey: ['permissions', 'grouped'],
+    queryKey: queryKeys.permission.groupedPermissions,
     queryFn: async () => {
       const response = await permissionApi.getGroupedPermissions()
       return response.data || {}
@@ -157,14 +173,15 @@ export function useCreatePermission() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (data: { code: string; name: string; description?: string }) =>
       permissionApi.createPermission(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] })
-      message.success('权限创建成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.permissions })
+      notification.success(uiText.feedback.permissionCreateSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '创建失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.createFailed)
     },
   })
 }
@@ -176,6 +193,7 @@ export function useUpdatePermission() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: ({
       permissionId,
       data,
@@ -184,11 +202,11 @@ export function useUpdatePermission() {
       data: { code: string; name: string; description?: string }
     }) => permissionApi.updatePermission(permissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] })
-      message.success('权限更新成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.permissions })
+      notification.success(uiText.feedback.permissionUpdateSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '更新失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.updateFailed)
     },
   })
 }
@@ -200,13 +218,14 @@ export function useDeletePermission() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (permissionId: number) => permissionApi.deletePermission(permissionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions'] })
-      message.success('权限删除成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.permissions })
+      notification.success(uiText.feedback.permissionDeleteSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '删除失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.deleteFailed)
     },
   })
 }
@@ -218,7 +237,7 @@ export function useDeletePermission() {
  */
 export function useUserRoles(userId: number | null) {
   return useQuery({
-    queryKey: ['user-roles', userId],
+    queryKey: queryKeys.permission.userRoles(userId),
     queryFn: async () => {
       if (!userId) return []
       const response = await userRoleApi.getUserRoles(userId)
@@ -236,15 +255,16 @@ export function useAssignUserRoles() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: ({ userId, roleIds }: { userId: number; roleIds: number[] }) =>
       userRoleApi.assignRoles(userId, roleIds),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['user-roles', variables.userId] })
-      queryClient.invalidateQueries({ queryKey: ['users'] }) // Refresh user list if needed
-      message.success('角色分配成功')
+      queryClient.invalidateQueries({ queryKey: queryKeys.permission.userRoles(variables.userId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.list }) // Refresh user list if needed
+      notification.success(uiText.feedback.userRoleAssignSuccess)
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.message || '分配失败')
+    onError: (error: unknown) => {
+      notification.error(getErrorMessage(error) || uiText.feedback.assignFailed)
     },
   })
 }
@@ -254,7 +274,7 @@ export function useAssignUserRoles() {
  */
 export function useUserPermissions(userId: number | null) {
   return useQuery({
-    queryKey: ['user-permissions', userId],
+    queryKey: queryKeys.permission.userPermissions(userId),
     queryFn: async () => {
       if (!userId) return []
       const response = await userRoleApi.getUserPermissions(userId)
@@ -269,6 +289,7 @@ export function useUserPermissions(userId: number | null) {
  * Check if current user has specific permission
  */
 export function useHasPermission(permissionCode: string) {
+  // Permission checks are intentionally lightweight and memoized by React Query cache.
   const userId = JSON.parse(localStorage.getItem('user') || '{}')?.id
   const { data: permissions = [] } = useUserPermissions(userId)
 

@@ -31,6 +31,13 @@
   animation: moveBackground 20s linear infinite;
 }
 
+.auth-language-switch {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+}
+
 @keyframes moveBackground {
   from {
     transform: translate(0, 0);

@@ -1,4 +1,5 @@
-import { Row, Col, Card, Statistic, Typography, Progress, Table } from 'antd'
+import { lazy, Suspense } from 'react'
+import { Row, Col, Card, Statistic, Table } from 'antd'
 import {
   UserOutlined,
   FileTextOutlined,
@@ -7,13 +8,15 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
 } from '@ant-design/icons'
-import ReactECharts from 'echarts-for-react'
+import { Spin } from 'antd'
 import type { EChartsOption } from 'echarts'
-import './Dashboard.css'
+import { uiText } from '@/config/uiText'
 
-const { Title } = Typography
+// Lazy-load chart renderer so non-chart admin interactions are not blocked by ECharts bootstrap.
+const ReactECharts = lazy(() => import('echarts-for-react'))
 
 export default function Dashboard() {
+  // Mock metrics; replace with real analytics query when backend endpoint is ready.
   // Mock data
   const stats = {
     totalUsers: 156,
@@ -29,32 +32,40 @@ export default function Dashboard() {
   // Line chart for API usage
   const usageChartOption: EChartsOption = {
     title: {
-      text: 'API 使用趋势（最近7天）',
+      text: uiText.adminDashboard.apiTrend,
       left: 'center',
     },
     tooltip: {
       trigger: 'axis',
     },
     legend: {
-      data: ['V0 接口', 'V1 接口'],
+      data: [uiText.adminDashboard.v0Api, uiText.adminDashboard.v1Api],
       bottom: 0,
     },
     xAxis: {
       type: 'category',
-      data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+      data: [
+        uiText.adminDashboard.monday,
+        uiText.adminDashboard.tuesday,
+        uiText.adminDashboard.wednesday,
+        uiText.adminDashboard.thursday,
+        uiText.adminDashboard.friday,
+        uiText.adminDashboard.saturday,
+        uiText.adminDashboard.sunday,
+      ],
     },
     yAxis: {
       type: 'value',
     },
     series: [
       {
-        name: 'V0 接口',
+        name: uiText.adminDashboard.v0Api,
         type: 'line',
         smooth: true,
         data: [320, 302, 301, 334, 390, 330, 320],
       },
       {
-        name: 'V1 接口',
+        name: uiText.adminDashboard.v1Api,
         type: 'line',
         smooth: true,
         data: [120, 132, 201, 234, 290, 330, 410],
@@ -65,7 +76,7 @@ export default function Dashboard() {
   // Pie chart for document distribution
   const docChartOption: EChartsOption = {
     title: {
-      text: '文档类型分布',
+      text: uiText.adminDashboard.docDistribution,
       left: 'center',
     },
     tooltip: {
@@ -76,7 +87,7 @@ export default function Dashboard() {
     },
     series: [
       {
-        name: '文档类型',
+        name: uiText.adminDashboard.docType,
         type: 'pie',
         radius: '60%',
         data: [
@@ -98,7 +109,7 @@ export default function Dashboard() {
   // Bar chart for response time
   const responseTimeOption: EChartsOption = {
     title: {
-      text: '响应时间分布（秒）',
+      text: uiText.adminDashboard.responseDistribution,
       left: 'center',
     },
     tooltip: {
@@ -116,7 +127,7 @@ export default function Dashboard() {
     },
     series: [
       {
-        name: '请求数',
+        name: uiText.adminDashboard.requestCount,
         type: 'bar',
         data: [120, 350, 280, 150, 80, 20],
         itemStyle: {
@@ -128,17 +139,17 @@ export default function Dashboard() {
 
   // Top questions table
   const topQuestions = [
-    { rank: 1, question: '房价下降的基本原则是什么？', count: 45 },
-    { rank: 2, question: '如何进行文档上传？', count: 38 },
-    { rank: 3, question: 'RAG V0 和 V1 有什么区别？', count: 32 },
-    { rank: 4, question: '支持哪些文件格式？', count: 28 },
-    { rank: 5, question: '如何管理会话历史？', count: 25 },
+    { rank: 1, question: uiText.adminDashboard.topQuestion1, count: 45 },
+    { rank: 2, question: uiText.adminDashboard.topQuestion2, count: 38 },
+    { rank: 3, question: uiText.adminDashboard.topQuestion3, count: 32 },
+    { rank: 4, question: uiText.adminDashboard.topQuestion4, count: 28 },
+    { rank: 5, question: uiText.adminDashboard.topQuestion5, count: 25 },
   ]
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <h3>数据面板</h3>
+        <h3>{uiText.adminDashboard.title}</h3>
       </div>
 
       {/* Statistics Cards */}
@@ -146,7 +157,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="总用户数"
+              title={uiText.adminDashboard.totalUsers}
               value={stats.totalUsers}
               prefix={<UserOutlined />}
               suffix={
@@ -160,7 +171,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="总文档数"
+              title={uiText.adminDashboard.totalDocuments}
               value={stats.totalDocuments}
               prefix={<FileTextOutlined />}
               suffix={
@@ -174,7 +185,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="总对话数"
+              title={uiText.adminDashboard.totalChats}
               value={stats.totalChats}
               prefix={<MessageOutlined />}
               suffix={
@@ -188,7 +199,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="平均响应时间"
+              title={uiText.adminDashboard.avgResponseTime}
               value={stats.avgResponseTime}
               prefix={<ClockCircleOutlined />}
               suffix={
@@ -209,12 +220,16 @@ export default function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={12}>
           <Card>
-            <ReactECharts option={usageChartOption} style={{ height: 350 }} />
+            <Suspense fallback={<div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin /></div>}>
+              <ReactECharts option={usageChartOption} style={{ height: 350 }} />
+            </Suspense>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
           <Card>
-            <ReactECharts option={docChartOption} style={{ height: 350 }} />
+            <Suspense fallback={<div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin /></div>}>
+              <ReactECharts option={docChartOption} style={{ height: 350 }} />
+            </Suspense>
           </Card>
         </Col>
       </Row>
@@ -222,11 +237,13 @@ export default function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={12}>
           <Card>
-            <ReactECharts option={responseTimeOption} style={{ height: 350 }} />
+            <Suspense fallback={<div style={{ height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin /></div>}>
+              <ReactECharts option={responseTimeOption} style={{ height: 350 }} />
+            </Suspense>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="热门问题 TOP 5">
+          <Card title={uiText.adminDashboard.topQuestions}>
             <Table
               dataSource={topQuestions}
               rowKey="rank"
@@ -234,19 +251,19 @@ export default function Dashboard() {
               size="small"
               columns={[
                 {
-                  title: '排名',
+                  title: uiText.adminDashboard.rank,
                   dataIndex: 'rank',
                   key: 'rank',
                   width: 60,
                 },
                 {
-                  title: '问题',
+                  title: uiText.adminDashboard.question,
                   dataIndex: 'question',
                   key: 'question',
                   ellipsis: true,
                 },
                 {
-                  title: '次数',
+                  title: uiText.adminDashboard.count,
                   dataIndex: 'count',
                   key: 'count',
                   width: 80,
