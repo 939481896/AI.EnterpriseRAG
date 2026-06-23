@@ -16,8 +16,14 @@ import App from './App'
 import GlobalErrorBoundary from '@/components/ErrorBoundary/GlobalErrorBoundary'
 import GlobalErrorListeners from '@/components/ErrorBoundary/GlobalErrorListeners'
 import { notification } from '@/services/notification'
+import { initSentry } from '@/services/monitoring'
+import { initPerformanceMonitoring } from '@/services/performance'
 import { dayjsLocaleMap, useLocaleStore } from '@/store/localeStore'
 import './styles/global.css'
+
+// ✅ Initialize monitoring services
+initSentry()
+initPerformanceMonitoring()
 
 // Create React Query client
 const queryClient = new QueryClient({

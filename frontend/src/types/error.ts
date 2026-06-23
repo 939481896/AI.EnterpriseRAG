@@ -36,16 +36,15 @@ export type ApiError = AxiosError<ApiErrorResponse>
 /** ✅ Safe error extraction utility */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof AxiosError) {
-    // First try to get the API error message
+    // For 401/403 errors, return statusText to avoid leaking sensitive details
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return error.response?.statusText || 'Unauthorized'
+    }
+
+    // For other errors, try to get the API error message
     const apiMessage = error.response?.data?.message
     if (apiMessage) {
       return apiMessage
-    }
-
-    // For 401/403 errors, return a generic message to avoid leaking info
-    // (actual error will be shown by specific handlers like login)
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return error.message
     }
 
     return error.message || 'Unknown error occurred'
