@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useMemo } from 'react'
-import { useUserPermissions } from '@/hooks/usePermission'
 import { useAuthStore } from '@/store/authStore'
-import type { Permission } from '@/api/permission'
 
 interface PermissionContextValue {
   permissions: string[]
@@ -16,24 +14,22 @@ const PermissionContext = createContext<PermissionContextValue>({
   hasPermission: () => false,
   hasAnyPermission: () => false,
   hasAllPermissions: () => false,
-  isLoading: true,
+  isLoading: false,
 })
 
 export const usePermissionContext = () => useContext(PermissionContext)
 
 /**
  * Permission Provider - 提供权限上下文给整个应用
+ * ✅ 使用登录时返回的权限列表，不需要额外 API 调用
  */
 export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuthStore()
-  const userId = user?.id ? Number(user.id) : null
 
-  const { data: permissionsData = [], isLoading } = useUserPermissions(userId)
-
-  // 提取权限代码列表
+  // ✅ 直接使用登录时返回的权限列表
   const permissions = useMemo(() => {
-    return permissionsData.map((p: Permission) => p.code)
-  }, [permissionsData])
+    return user?.permissions || []
+  }, [user?.permissions])
 
   // 检查单个权限
   const hasPermission = useMemo(
@@ -59,9 +55,9 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
-      isLoading,
+      isLoading: false,
     }),
-    [permissions, hasPermission, hasAnyPermission, hasAllPermissions, isLoading]
+    [permissions, hasPermission, hasAnyPermission, hasAllPermissions]
   )
 
   return <PermissionContext.Provider value={value}>{children}</PermissionContext.Provider>

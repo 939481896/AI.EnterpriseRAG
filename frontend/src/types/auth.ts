@@ -31,4 +31,9 @@ export interface LoginResponse {
   permissions: string[]
 }
 
+export interface RefreshTokenResponse {
+  accessToken: string
+  refreshToken: string
+}
+
 export type { ApiResponse } from '@/types/api'

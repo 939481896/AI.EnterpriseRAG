@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 import DOMPurify from 'dompurify'
 import { getApiBaseUrl, getApiTimeout } from '@/types/env'
 import { getErrorMessage, type ApiErrorResponse } from '@/types/error'
@@ -34,6 +34,25 @@ const apiClient = axios.create({
   },
 })
 
+// ✅ Track refresh request to avoid infinite loops
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (token: string) => void
+  reject: (error: Error) => void
+}> = []
+
+const processQueue = (token: string | null, error?: Error) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else if (token) {
+      prom.resolve(token)
+    }
+  })
+
+  failedQueue = []
+}
+
 // Request interceptor - add JWT token
 apiClient.interceptors.request.use(
   (config) => {
@@ -53,7 +72,7 @@ apiClient.interceptors.response.use(
   (response) => {
     // ✅ Sanitize response data to prevent XSS attacks
     let data = response.data
-    
+
     try {
       data = sanitizeData(data)
     } catch (sanitizeError) {
@@ -67,17 +86,88 @@ apiClient.interceptors.response.use(
     }
     return data
   },
-  (error: AxiosError<ApiErrorResponse>) => {
-    // Only handle 401 globally for protected routes (not login page)
+  async (error: AxiosError<ApiErrorResponse>) => {
+    const originalRequest = error.config as any
+
+    // ✅ Handle 401 - try to refresh token
     if (error.response?.status === 401) {
-      // Don't redirect if already on login page or if it's a login request
       const isLoginRequest = error.config?.url?.includes('/auth/login')
+      const isRefreshRequest = error.config?.url?.includes('/Auth/refresh')
       const isOnLoginPage = window.location.pathname === '/login'
 
-      if (!isLoginRequest && !isOnLoginPage) {
+      // Don't try to refresh for login/refresh requests
+      if (isLoginRequest || isRefreshRequest || isOnLoginPage) {
         localStorage.removeItem('token')
+        localStorage.removeItem('refreshToken')
         localStorage.removeItem('user')
         window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      // ✅ If not already refreshing, attempt token refresh
+      if (!isRefreshing) {
+        isRefreshing = true
+
+        try {
+          const refreshToken = localStorage.getItem('refreshToken')
+
+          if (!refreshToken) {
+            throw new Error('No refresh token available')
+          }
+
+          // Import dynamically to avoid circular dependency
+          const { authApi } = await import('./auth')
+
+          console.log('[Auth] Attempting to refresh token...')
+          const response = await authApi.refreshToken(refreshToken)
+
+          const newAccessToken = response.data?.accessToken
+
+          if (newAccessToken) {
+            console.log('[Auth] Token refreshed successfully')
+            localStorage.setItem('token', newAccessToken)
+
+            // Update new refresh token if provided
+            if (response.data?.refreshToken) {
+              localStorage.setItem('refreshToken', response.data.refreshToken)
+            }
+
+            // Update the original request with new token
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+
+            // Process queued requests with new token
+            processQueue(newAccessToken)
+
+            // Retry original request
+            isRefreshing = false
+            return apiClient(originalRequest)
+          } else {
+            throw new Error('No access token in refresh response')
+          }
+        } catch (refreshError) {
+          console.error('[Auth] Token refresh failed:', getErrorMessage(refreshError))
+
+          // Clear auth on refresh failure
+          localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('user')
+
+          processQueue(null, new Error('Token refresh failed'))
+          isRefreshing = false
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
+        }
+      } else {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: (token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(apiClient(originalRequest))
+            },
+            reject: reject,
+          })
+        })
       }
     }
 

@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { LoginRequest, RegisterRequest, LoginResponse } from '@/types/auth'
+import type { LoginRequest, RegisterRequest, LoginResponse, RefreshTokenResponse } from '@/types/auth'
 import type { ApiResponse } from '@/types/api'
 
 export const authApi = {
@@ -32,4 +32,13 @@ export const authApi = {
   getCurrentUser: async (): Promise<ApiResponse> => {
     return apiClient.get('/api/auth/me')
   },
+
+  /**
+   * Refresh access token using refresh token
+   */
+  refreshToken: async (refreshToken: string): Promise<ApiResponse<RefreshTokenResponse>> => {
+    return apiClient.post('/api/Auth/refresh', { refreshToken })
+  },
 }
+
+export type { RefreshTokenResponse } from '@/types/auth'

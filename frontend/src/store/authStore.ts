@@ -5,9 +5,11 @@ import type { User } from '@/types/auth'
 interface AuthState {
   user: User | null
   token: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
+  setRefreshToken: (refreshToken: string | null) => void
   logout: () => void
   validateToken: () => boolean
 }
@@ -92,6 +94,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
 
       setUser: (user) =>
@@ -111,9 +114,11 @@ export const useAuthStore = create<AuthState>()(
           set({
             token: null,
             user: null,
+            refreshToken: null,
             isAuthenticated: false,
           })
           localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
           localStorage.removeItem('user')
           return
         }
@@ -125,9 +130,11 @@ export const useAuthStore = create<AuthState>()(
           set({
             token: null,
             user: null,
+            refreshToken: null,
             isAuthenticated: false,
           })
           localStorage.removeItem('token')
+          localStorage.removeItem('refreshToken')
           localStorage.removeItem('user')
           return
         }
@@ -146,13 +153,24 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      setRefreshToken: (refreshToken) => {
+        set({ refreshToken })
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken)
+        } else {
+          localStorage.removeItem('refreshToken')
+        }
+      },
+
       logout: () => {
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
         })
         localStorage.removeItem('token')
+        localStorage.removeItem('refreshToken')
         localStorage.removeItem('user')
       },
 
@@ -176,6 +194,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

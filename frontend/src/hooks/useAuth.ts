@@ -84,7 +84,7 @@ const isExpired = (token: string): boolean => {
  * 3) Emit local user notification.
  */
 export function useLogin() {
-  const { setUser, setToken } = useAuthStore()
+  const { setUser, setToken, setRefreshToken } = useAuthStore()
 
     return useMutation({
     meta: { silentError: true },
@@ -105,7 +105,7 @@ export function useLogin() {
               return
             }
 
-            const { userId, accessToken, userName, permissions } = response.data
+            const { userId, accessToken, refreshToken, userName, permissions } = response.data
 
             console.log('[Login] Token received, length:', accessToken?.length)
 
@@ -136,8 +136,11 @@ export function useLogin() {
                 permissions,
             }
 
-            // ✅ Token is validated, now set it
+            // ✅ Token is validated, now set it and refresh token
             setToken(accessToken)
+            if (refreshToken) {
+              setRefreshToken(refreshToken)
+            }
             setUser(userInfo)
 
             notification.success(uiText.auth.loginSuccess)
